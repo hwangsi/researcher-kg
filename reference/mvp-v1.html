@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Researcher Knowledge Graph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/[email protected]/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/[email protected]/standalone/umd/vis-network.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #FAF7F0;
+    --bg-card: #FFFEFA;
+    --ink: #1A1A1A;
+    --ink-muted: #6B6B6B;
+    --rule: #E5DFCF;
+    --accent: #8B2331;
+    --accent-soft: #C8736B;
+    --gold: #B8893B;
+    --green: #4A6B3F;
+    --blue: #355374;
+    --purple: #6B4A7E;
+  }
+  * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  html, body { background: var(--bg); color: var(--ink); }
+  body {
+    font-family: 'Pretendard Variable', Pretendard, system-ui, -apple-system, sans-serif;
+    font-feature-settings: "ss01", "ss02";
+  }
+  .display { font-family: 'Fraunces', 'Pretendard Variable', serif; font-optical-sizing: auto; letter-spacing: -0.02em; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .rule { border-color: var(--rule); }
+  .card { background: var(--bg-card); border: 1px solid var(--rule); }
+  .accent { color: var(--accent); }
+  .bg-ink { background: var(--ink); }
+  .text-muted { color: var(--ink-muted); }
+  .input-field {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .input-field:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(139, 35, 49, 0.08);
+    outline: none;
+  }
+  .btn-primary {
+    background: var(--ink);
+    color: var(--bg);
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .btn-primary:hover:not(:disabled) { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .tab-btn {
+    border-bottom: 2px solid transparent;
+    transition: border-color 0.15s, color 0.15s;
+    color: var(--ink-muted);
+  }
+  .tab-btn:hover { color: var(--ink); }
+  .tab-btn.active { border-color: var(--accent); color: var(--ink); }
+  .candidate-card { transition: border-color 0.15s, transform 0.1s; cursor: pointer; }
+  .candidate-card:hover { border-color: var(--accent); }
+  .candidate-card.selected { border-color: var(--accent); background: rgba(139, 35, 49, 0.03); }
+  #graph-container { background: var(--bg-card); border: 1px solid var(--rule); }
+  .stat-num { font-family: 'Fraunces', serif; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .loader {
+    width: 16px; height: 16px;
+    border: 2px solid var(--rule);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .scroll-y { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+  .scroll-y::-webkit-scrollbar { width: 6px; }
+  .scroll-y::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+  table.kg-table { border-collapse: collapse; width: 100%; }
+  table.kg-table th { text-align: left; font-weight: 500; color: var(--ink-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--rule); }
+  table.kg-table td { padding: 0.75rem; border-bottom: 1px solid var(--rule); font-size: 0.875rem; vertical-align: top; }
+  table.kg-table tbody tr:hover { background: rgba(0,0,0,0.015); }
+  .pill { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 500; }
+  .pill-accent { background: rgba(139,35,49,0.08); color: var(--accent); }
+  .pill-gold { background: rgba(184,137,59,0.1); color: var(--gold); }
+  .pill-blue { background: rgba(53,83,116,0.1); color: var(--blue); }
+  input[type="range"] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--rule); border-radius: 2px; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: var(--accent); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg); }
+  input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: var(--accent); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg); }
+  .deco-line { background: linear-gradient(90deg, var(--ink) 0%, var(--ink) 60%, transparent 100%); height: 1px; }
+</style>
+</head>
+<body>
+
+<div class="max-w-[1400px] mx-auto px-6 lg:px-10 py-8">
+
+  <!-- Header -->
+  <header class="mb-10">
+    <div class="flex items-baseline gap-4 mb-2">
+      <h1 class="display text-4xl font-medium">Researcher</h1>
+      <span class="display text-4xl italic accent">Knowledge Graph</span>
+    </div>
+    <div class="deco-line w-32 mb-3"></div>
+    <p class="text-sm text-muted">Publications · Co-authors · Topics · Journals — via OpenAlex & PubMed</p>
+  </header>
+
+  <!-- Search Section -->
+  <section id="search-section" class="card rounded-lg p-6 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-4 items-end">
+      <div>
+        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">저자 이름 (Author)</label>
+        <input id="author-name" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="e.g. Sungil Hwang" autocomplete="off">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">소속 기관 (Affiliation)</label>
+        <input id="author-institution" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="e.g. Bundang, Seoul National" autocomplete="off">
+      </div>
+      <button id="search-btn" class="btn-primary px-6 py-2.5 rounded text-sm font-medium whitespace-nowrap">
+        <span id="search-btn-text">검색</span>
+      </button>
+    </div>
+    <p class="text-xs text-muted mt-3">기관명은 키워드 일부만 입력해도 됩니다 (예: "Bundang"). OpenAlex 데이터베이스 기반.</p>
+  </section>
+
+  <!-- Status / Error -->
+  <div id="status" class="hidden mb-6"></div>
+
+  <!-- Candidate Selection -->
+  <section id="candidates-section" class="hidden mb-8">
+    <div class="flex items-baseline justify-between mb-4">
+      <h2 class="display text-xl font-medium">후보 저자 선택</h2>
+      <span id="candidate-count" class="text-xs text-muted mono"></span>
+    </div>
+    <div id="candidates-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+  </section>
+
+  <!-- Dashboard -->
+  <section id="dashboard" class="hidden">
+
+    <!-- Author header -->
+    <div class="flex items-end justify-between flex-wrap gap-4 mb-6 pb-6 border-b rule">
+      <div>
+        <p class="text-xs uppercase tracking-wider text-muted mb-1">선택된 저자</p>
+        <h2 id="author-display-name" class="display text-3xl font-medium"></h2>
+        <p id="author-affiliation" class="text-sm text-muted mt-1"></p>
+        <p id="author-orcid" class="text-xs text-muted mono mt-1"></p>
+      </div>
+      <button id="reset-btn" class="text-sm underline-offset-2 hover:underline text-muted">← 다시 검색</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+      <div class="card rounded p-4">
+        <p class="text-xs text-muted uppercase tracking-wider mb-1">Publications</p>
+        <p class="stat-num text-3xl" id="stat-papers">—</p>
+      </div>
+      <div class="card rounded p-4">
+        <p class="text-xs text-muted uppercase tracking-wider mb-1">Citations</p>
+        <p class="stat-num text-3xl" id="stat-citations">—</p>
+      </div>
+      <div class="card rounded p-4">
+        <p class="text-xs text-muted uppercase tracking-wider mb-1">h-index</p>
+        <p class="stat-num text-3xl" id="stat-hindex">—</p>
+      </div>
+      <div class="card rounded p-4">
+        <p class="text-xs text-muted uppercase tracking-wider mb-1">Years Active</p>
+        <p class="stat-num text-3xl" id="stat-years">—</p>
+      </div>
+      <div class="card rounded p-4">
+        <p class="text-xs text-muted uppercase tracking-wider mb-1">Co-authors</p>
+        <p class="stat-num text-3xl" id="stat-coauthors">—</p>
+      </div>
+    </div>
+
+    <!-- Year Range Filter -->
+    <div class="card rounded p-4 mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <label class="text-xs uppercase tracking-wider text-muted">연도 범위 (Year Range)</label>
+        <span id="year-range-label" class="mono text-xs"></span>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <p class="text-xs text-muted mb-1">시작</p>
+          <input type="range" id="year-min" class="w-full">
+        </div>
+        <div>
+          <p class="text-xs text-muted mb-1">종료</p>
+          <input type="range" id="year-max" class="w-full">
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b rule mb-6 flex gap-6 overflow-x-auto">
+      <button class="tab-btn active py-3 text-sm font-medium whitespace-nowrap" data-tab="network">네트워크</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="yearly">연도별 추이</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="journals">저널 (IF)</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="topics">연구 주제</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="collaborators">공저자</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="papers">논문 목록</button>
+    </div>
+
+    <!-- Tab Panels -->
+    <div id="tab-network" class="tab-panel">
+      <div class="flex items-baseline justify-between mb-3">
+        <h3 class="display text-lg">Ego Network</h3>
+        <p class="text-xs text-muted">중심 저자 ↔ 상위 저널·주제·공저자. 노드 크기 = 빈도. 공저자끼리는 연결 없음.</p>
+      </div>
+      <div id="graph-container" class="rounded" style="height: 620px;"></div>
+      <div class="flex flex-wrap gap-4 mt-3 text-xs text-muted">
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background: var(--accent)"></span>저자 (Self)</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background: var(--gold)"></span>저널</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background: var(--green)"></span>연구 주제</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background: var(--blue)"></span>공저자</span>
+      </div>
+    </div>
+
+    <div id="tab-yearly" class="tab-panel hidden">
+      <h3 class="display text-lg mb-4">연도별 출판 & 인용</h3>
+      <div class="card rounded p-4">
+        <canvas id="yearly-chart" height="100"></canvas>
+      </div>
+    </div>
+
+    <div id="tab-journals" class="tab-panel hidden">
+      <div class="flex items-baseline justify-between mb-4">
+        <h3 class="display text-lg">저널 분포</h3>
+        <p class="text-xs text-muted">IF는 OpenAlex의 2-year mean citedness (JCR IF와 동일 공식, 다른 DB)</p>
+      </div>
+      <div class="card rounded overflow-hidden">
+        <table class="kg-table">
+          <thead><tr>
+            <th>저널</th>
+            <th class="text-right">논문 수</th>
+            <th class="text-right">총 인용</th>
+            <th class="text-right">IF (2yr)</th>
+            <th class="text-right">h-index</th>
+          </tr></thead>
+          <tbody id="journals-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-topics" class="tab-panel hidden">
+      <h3 class="display text-lg mb-4">연구 주제 분포</h3>
+      <div class="card rounded p-4">
+        <canvas id="topics-chart" height="120"></canvas>
+      </div>
+    </div>
+
+    <div id="tab-collaborators" class="tab-panel hidden">
+      <h3 class="display text-lg mb-4">공저자 (Collaboration Count 순)</h3>
+      <div class="card rounded overflow-hidden">
+        <table class="kg-table">
+          <thead><tr>
+            <th>공저자</th>
+            <th>소속</th>
+            <th class="text-right">공저 횟수</th>
+            <th class="text-right">최근 공저</th>
+          </tr></thead>
+          <tbody id="collab-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-papers" class="tab-panel hidden">
+      <h3 class="display text-lg mb-4">논문 목록</h3>
+      <div class="card rounded overflow-hidden">
+        <table class="kg-table">
+          <thead><tr>
+            <th style="width: 60px;">연도</th>
+            <th>제목 / 저널</th>
+            <th class="text-right" style="width: 80px;">인용</th>
+          </tr></thead>
+          <tbody id="papers-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+  <footer class="mt-16 pt-6 border-t rule text-xs text-muted">
+    Data: <a href="https://openalex.org" target="_blank" class="underline">OpenAlex</a> · open scholarly metadata.
+    IF proxy = 2-year mean citedness from OpenAlex DB (same formula as JCR IF, different citation database).
+  </footer>
+</div>
+
+<script>
+// ============================================================
+// State
+// ============================================================
+const STATE = {
+  author: null,
+  works: [],
+  sourceStats: new Map(),   // openalex source id -> {if_2yr, h_index, display_name, host_org}
+  yearMin: null,
+  yearMax: null,
+  filteredYearMin: null,
+  filteredYearMax: null,
+  network: null,
+  yearlyChart: null,
+  topicsChart: null,
+};
+
+const POLITE_EMAIL = 'researcher-kg@example.com'; // OpenAlex polite pool
+
+// ============================================================
+// API helpers
+// ============================================================
+async function oaFetch(path) {
+  const sep = path.includes('?') ? '&' : '?';
+  const url = `https://api.openalex.org${path}${sep}mailto=${encodeURIComponent(POLITE_EMAIL)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`OpenAlex ${res.status}: ${path}`);
+  return res.json();
+}
+
+async function searchAuthors(name, institution) {
+  // search authors by name, then locally filter by institution match
+  const data = await oaFetch(`/authors?search=${encodeURIComponent(name)}&per-page=25`);
+  const instLower = (institution || '').toLowerCase().trim();
+  const tokens = instLower.split(/\s+/).filter(t => t.length >= 3);
+
+  const matches = [];
+  for (const a of data.results) {
+    const affs = (a.affiliations || []).flatMap(x => x.institution ? [x.institution.display_name] : []);
+    const last = (a.last_known_institutions || []).map(x => x.display_name);
+    const allInsts = [...new Set([...affs, ...last])];
+    const allLower = allInsts.map(s => s.toLowerCase()).join(' | ');
+
+    let matched = !instLower; // if no institution given, accept all
+    if (tokens.length) matched = tokens.some(t => allLower.includes(t));
+
+    if (matched) {
+      matches.push({ ...a, _institutions: allInsts });
+    }
+  }
+  return matches;
+}
+
+async function fetchAllWorks(authorId) {
+  const works = [];
+  let cursor = '*';
+  let safety = 0;
+  while (cursor && safety < 50) {
+    const data = await oaFetch(`/works?filter=author.id:${authorId}&per-page=200&cursor=${encodeURIComponent(cursor)}&sort=publication_year:desc`);
+    works.push(...data.results);
+    cursor = data.meta.next_cursor;
+    if (!cursor) break;
+    safety++;
+  }
+  return works;
+}
+
+async function fetchSourceStats(sourceIds) {
+  // batch in groups of 50
+  const stats = new Map();
+  const ids = [...sourceIds].filter(Boolean);
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const filterIds = chunk.map(x => x.replace('https://openalex.org/', '')).join('|');
+    try {
+      const data = await oaFetch(`/sources?filter=ids.openalex:${filterIds}&per-page=50`);
+      for (const s of data.results) {
+        stats.set(s.id, {
+          display_name: s.display_name,
+          host_org: s.host_organization_name || '',
+          if_2yr: s.summary_stats?.['2yr_mean_citedness'] ?? null,
+          h_index: s.summary_stats?.h_index ?? null,
+          works_count: s.works_count,
+          issn_l: s.issn_l,
+        });
+      }
+    } catch (e) {
+      console.warn('source fetch failed', e);
+    }
+  }
+  return stats;
+}
+
+// ============================================================
+// UI helpers
+// ============================================================
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return [...document.querySelectorAll(sel)]; }
+
+function showStatus(msg, kind = 'info') {
+  const el = $('#status');
+  el.classList.remove('hidden');
+  const colorClass = kind === 'error' ? 'text-red-700 bg-red-50' : (kind === 'success' ? 'text-green-700 bg-green-50' : 'text-amber-800 bg-amber-50');
+  el.innerHTML = `<div class="rounded p-3 text-sm ${colorClass}">${msg}</div>`;
+}
+function hideStatus() { $('#status').classList.add('hidden'); }
+
+function setSearching(on) {
+  const btn = $('#search-btn');
+  btn.disabled = on;
+  $('#search-btn-text').innerHTML = on ? '<span class="loader" style="vertical-align: -2px;"></span> 검색 중' : '검색';
+}
+
+function fmtNum(n) {
+  if (n == null) return '—';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+  return String(n);
+}
+function fmtFloat(n, digits = 2) {
+  if (n == null || isNaN(n)) return '—';
+  return Number(n).toFixed(digits);
+}
+
+// ============================================================
+// Search flow
+// ============================================================
+$('#search-btn').addEventListener('click', runSearch);
+$('#author-name').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+$('#author-institution').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+
+async function runSearch() {
+  const name = $('#author-name').value.trim();
+  const inst = $('#author-institution').value.trim();
+  if (!name) { showStatus('저자 이름을 입력하세요.', 'error'); return; }
+
+  hideStatus();
+  setSearching(true);
+  $('#candidates-section').classList.add('hidden');
+  $('#dashboard').classList.add('hidden');
+
+  try {
+    const candidates = await searchAuthors(name, inst);
+    if (!candidates.length) {
+      showStatus('일치하는 저자를 찾지 못했습니다. 이름 철자나 기관 키워드를 다시 확인해보세요.', 'error');
+      return;
+    }
+    renderCandidates(candidates);
+  } catch (e) {
+    showStatus(`검색 오류: ${e.message}`, 'error');
+  } finally {
+    setSearching(false);
+  }
+}
+
+function renderCandidates(cands) {
+  $('#candidate-count').textContent = `${cands.length} candidate${cands.length === 1 ? '' : 's'}`;
+  const list = $('#candidates-list');
+  list.innerHTML = cands.map((a, i) => {
+    const insts = a._institutions.slice(0, 3).join(' · ') || '소속 미상';
+    const orcid = a.orcid ? a.orcid.replace('https://orcid.org/', '') : '';
+    return `
+      <div class="candidate-card card rounded p-4" data-idx="${i}">
+        <div class="flex items-start justify-between gap-3 mb-1">
+          <p class="font-medium text-base">${a.display_name}</p>
+          ${orcid ? `<span class="mono text-[10px] text-muted whitespace-nowrap">${orcid}</span>` : ''}
+        </div>
+        <p class="text-xs text-muted mb-2">${insts}</p>
+        <div class="flex gap-3 text-xs">
+          <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
+          <span><span class="text-muted">Cited:</span> <span class="mono">${fmtNum(a.cited_by_count)}</span></span>
+          ${a.summary_stats?.h_index ? `<span><span class="text-muted">h:</span> <span class="mono">${a.summary_stats.h_index}</span></span>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  $$('#candidates-list .candidate-card').forEach(el => {
+    el.addEventListener('click', () => selectAuthor(cands[+el.dataset.idx]));
+  });
+
+  $('#candidates-section').classList.remove('hidden');
+}
+
+// ============================================================
+// Author selection → load works
+// ============================================================
+async function selectAuthor(author) {
+  STATE.author = author;
+  $('#candidates-section').classList.add('hidden');
+  showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${author.display_name} 의 논문을 불러오는 중...`);
+
+  try {
+    const works = await fetchAllWorks(author.id);
+    STATE.works = works;
+
+    // Collect source IDs
+    const sourceIds = new Set();
+    for (const w of works) {
+      const src = w.primary_location?.source?.id;
+      if (src) sourceIds.add(src);
+    }
+
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${sourceIds.size}개 저널의 IF 정보를 가져오는 중...`);
+    STATE.sourceStats = await fetchSourceStats(sourceIds);
+
+    hideStatus();
+    initDashboard();
+  } catch (e) {
+    showStatus(`데이터 로딩 실패: ${e.message}`, 'error');
+  }
+}
+
+// ============================================================
+// Dashboard
+// ============================================================
+function initDashboard() {
+  const a = STATE.author;
+  $('#author-display-name').textContent = a.display_name;
+  $('#author-affiliation').textContent = a._institutions.slice(0, 3).join(' · ');
+  $('#author-orcid').textContent = a.orcid ? a.orcid.replace('https://', '') : '';
+
+  // Year range
+  const years = STATE.works.map(w => w.publication_year).filter(Boolean);
+  STATE.yearMin = Math.min(...years);
+  STATE.yearMax = Math.max(...years);
+  STATE.filteredYearMin = STATE.yearMin;
+  STATE.filteredYearMax = STATE.yearMax;
+
+  const yMin = $('#year-min'), yMax = $('#year-max');
+  yMin.min = yMax.min = STATE.yearMin;
+  yMin.max = yMax.max = STATE.yearMax;
+  yMin.value = STATE.yearMin;
+  yMax.value = STATE.yearMax;
+  yMin.addEventListener('input', onYearChange);
+  yMax.addEventListener('input', onYearChange);
+  updateYearLabel();
+
+  $('#dashboard').classList.remove('hidden');
+  refreshAll();
+
+  // Tabs
+  $$('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      $$('.tab-panel').forEach(p => p.classList.add('hidden'));
+      $(`#tab-${btn.dataset.tab}`).classList.remove('hidden');
+      // re-render network on tab change to fix layout
+      if (btn.dataset.tab === 'network' && STATE.network) STATE.network.fit();
+    });
+  });
+
+  $('#reset-btn').addEventListener('click', () => {
+    STATE.author = null;
+    STATE.works = [];
+    $('#dashboard').classList.add('hidden');
+    $('#author-name').focus();
+  });
+
+  $('#dashboard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function onYearChange() {
+  let lo = +$('#year-min').value, hi = +$('#year-max').value;
+  if (lo > hi) [lo, hi] = [hi, lo];
+  STATE.filteredYearMin = lo;
+  STATE.filteredYearMax = hi;
+  updateYearLabel();
+  refreshAll();
+}
+
+function updateYearLabel() {
+  $('#year-range-label').textContent = `${STATE.filteredYearMin} – ${STATE.filteredYearMax}`;
+}
+
+function filteredWorks() {
+  return STATE.works.filter(w => {
+    const y = w.publication_year;
+    return y && y >= STATE.filteredYearMin && y <= STATE.filteredYearMax;
+  });
+}
+
+function refreshAll() {
+  const works = filteredWorks();
+  renderStats(works);
+  renderNetwork(works);
+  renderYearly(works);
+  renderJournals(works);
+  renderTopics(works);
+  renderCollaborators(works);
+  renderPapers(works);
+}
+
+// ============================================================
+// Stats
+// ============================================================
+function renderStats(works) {
+  const totalCites = works.reduce((s, w) => s + (w.cited_by_count || 0), 0);
+
+  // h-index from filtered works
+  const cites = works.map(w => w.cited_by_count || 0).sort((a, b) => b - a);
+  let h = 0;
+  for (let i = 0; i < cites.length; i++) {
+    if (cites[i] >= i + 1) h = i + 1; else break;
+  }
+
+  const years = works.map(w => w.publication_year).filter(Boolean);
+  const yearsActive = years.length ? (Math.max(...years) - Math.min(...years) + 1) : 0;
+
+  // co-author set (excluding self)
+  const selfId = STATE.author.id;
+  const coauthors = new Set();
+  for (const w of works) {
+    for (const auth of (w.authorships || [])) {
+      if (auth.author?.id && auth.author.id !== selfId) coauthors.add(auth.author.id);
+    }
+  }
+
+  $('#stat-papers').textContent = works.length;
+  $('#stat-citations').textContent = fmtNum(totalCites);
+  $('#stat-hindex').textContent = h;
+  $('#stat-years').textContent = yearsActive;
+  $('#stat-coauthors').textContent = fmtNum(coauthors.size);
+}
+
+// ============================================================
+// Network graph (Ego)
+// ============================================================
+function renderNetwork(works) {
+  const selfId = STATE.author.id;
+  const journalCount = new Map();
+  const topicCount = new Map();
+  const coauthorCount = new Map();
+  const coauthorMeta = new Map();
+
+  for (const w of works) {
+    const sid = w.primary_location?.source?.id;
+    if (sid) journalCount.set(sid, (journalCount.get(sid) || 0) + 1);
+
+    // OpenAlex topics (newer) or concepts (older)
+    const topics = (w.topics && w.topics.length) ? w.topics : (w.concepts || []);
+    for (const t of topics.slice(0, 3)) {
+      const key = t.display_name;
+      topicCount.set(key, (topicCount.get(key) || 0) + 1);
+    }
+
+    for (const auth of (w.authorships || [])) {
+      const aid = auth.author?.id;
+      if (!aid || aid === selfId) continue;
+      coauthorCount.set(aid, (coauthorCount.get(aid) || 0) + 1);
+      if (!coauthorMeta.has(aid)) {
+        coauthorMeta.set(aid, {
+          name: auth.author.display_name,
+          inst: (auth.institutions?.[0]?.display_name) || '',
+        });
+      }
+    }
+  }
+
+  const topJournals = [...journalCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const topTopics = [...topicCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const topCoauthors = [...coauthorCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25);
+
+  const nodes = [];
+  const edges = [];
+
+  // Center
+  nodes.push({
+    id: 'self',
+    label: STATE.author.display_name,
+    color: { background: '#8B2331', border: '#5C1620' },
+    font: { color: '#FAF7F0', size: 16, face: 'Pretendard Variable' },
+    size: 36,
+    shape: 'dot',
+  });
+
+  // Journals
+  topJournals.forEach(([sid, count], i) => {
+    const stat = STATE.sourceStats.get(sid);
+    const name = stat?.display_name || 'Unknown';
+    const ifLabel = stat?.if_2yr != null ? ` (IF ${fmtFloat(stat.if_2yr, 1)})` : '';
+    nodes.push({
+      id: `j_${sid}`,
+      label: name.length > 28 ? name.slice(0, 26) + '…' : name,
+      title: `${name}${ifLabel}\n논문 수: ${count}`,
+      color: { background: '#B8893B', border: '#7A5C26' },
+      font: { color: '#1A1A1A', size: 11 },
+      size: 12 + count * 3,
+      shape: 'dot',
+      group: 'journal',
+    });
+    edges.push({ from: 'self', to: `j_${sid}`, value: count, color: { color: '#D4C5A3', opacity: 0.6 } });
+  });
+
+  // Topics
+  topTopics.forEach(([name, count]) => {
+    nodes.push({
+      id: `t_${name}`,
+      label: name.length > 24 ? name.slice(0, 22) + '…' : name,
+      title: `${name}\n빈도: ${count}`,
+      color: { background: '#4A6B3F', border: '#2F4528' },
+      font: { color: '#1A1A1A', size: 11 },
+      size: 12 + count * 2,
+      shape: 'dot',
+      group: 'topic',
+    });
+    edges.push({ from: 'self', to: `t_${name}`, value: count, color: { color: '#B5C6AE', opacity: 0.6 } });
+  });
+
+  // Co-authors (NO inter-coauthor edges per spec)
+  topCoauthors.forEach(([aid, count]) => {
+    const meta = coauthorMeta.get(aid);
+    nodes.push({
+      id: `c_${aid}`,
+      label: meta.name,
+      title: `${meta.name}${meta.inst ? '\n' + meta.inst : ''}\n공저 ${count}회`,
+      color: { background: '#355374', border: '#1F344A' },
+      font: { color: '#1A1A1A', size: 10 },
+      size: 8 + count * 2,
+      shape: 'dot',
+      group: 'coauthor',
+    });
+    edges.push({ from: 'self', to: `c_${aid}`, value: count, color: { color: '#A3B5C7', opacity: 0.5 } });
+  });
+
+  const container = $('#graph-container');
+  if (STATE.network) STATE.network.destroy();
+
+  STATE.network = new vis.Network(container, { nodes, edges }, {
+    physics: {
+      solver: 'forceAtlas2Based',
+      forceAtlas2Based: { gravitationalConstant: -45, centralGravity: 0.012, springLength: 110, springConstant: 0.08, damping: 0.6 },
+      stabilization: { iterations: 200 },
+    },
+    interaction: { hover: true, tooltipDelay: 150, dragNodes: true },
+    edges: { smooth: { type: 'continuous' }, scaling: { min: 1, max: 6 } },
+    nodes: { borderWidth: 1.5 },
+  });
+}
+
+// ============================================================
+// Yearly chart
+// ============================================================
+function renderYearly(works) {
+  const byYear = new Map();
+  for (const w of works) {
+    if (!w.publication_year) continue;
+    if (!byYear.has(w.publication_year)) byYear.set(w.publication_year, { papers: 0, cites: 0 });
+    const o = byYear.get(w.publication_year);
+    o.papers++;
+    o.cites += w.cited_by_count || 0;
+  }
+  const years = [...byYear.keys()].sort();
+  const papers = years.map(y => byYear.get(y).papers);
+  const cites = years.map(y => byYear.get(y).cites);
+
+  if (STATE.yearlyChart) STATE.yearlyChart.destroy();
+  STATE.yearlyChart = new Chart($('#yearly-chart'), {
+    type: 'bar',
+    data: {
+      labels: years,
+      datasets: [
+        { type: 'bar', label: '논문 수', data: papers, backgroundColor: '#8B2331', yAxisID: 'y' },
+        { type: 'line', label: '인용 수', data: cites, borderColor: '#355374', backgroundColor: '#355374', yAxisID: 'y1', tension: 0.3, pointRadius: 3 },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: '논문 수' }, ticks: { precision: 0 } },
+        y1: { type: 'linear', position: 'right', title: { display: true, text: '인용 수' }, grid: { drawOnChartArea: false } },
+      },
+      plugins: { legend: { position: 'top' } },
+    },
+  });
+}
+
+// ============================================================
+// Journals table
+// ============================================================
+function renderJournals(works) {
+  const counts = new Map();
+  for (const w of works) {
+    const sid = w.primary_location?.source?.id;
+    if (!sid) continue;
+    if (!counts.has(sid)) counts.set(sid, { papers: 0, cites: 0 });
+    const o = counts.get(sid);
+    o.papers++;
+    o.cites += w.cited_by_count || 0;
+  }
+  const rows = [...counts.entries()]
+    .map(([sid, c]) => {
+      const stat = STATE.sourceStats.get(sid) || {};
+      return { sid, name: stat.display_name || 'Unknown', if_2yr: stat.if_2yr, h_index: stat.h_index, ...c };
+    })
+    .sort((a, b) => b.papers - a.papers);
+
+  $('#journals-tbody').innerHTML = rows.map(r => `
+    <tr>
+      <td>
+        <div class="font-medium">${r.name}</div>
+      </td>
+      <td class="text-right mono">${r.papers}</td>
+      <td class="text-right mono">${fmtNum(r.cites)}</td>
+      <td class="text-right">
+        ${r.if_2yr != null ? `<span class="pill pill-accent mono">${fmtFloat(r.if_2yr, 2)}</span>` : '<span class="text-muted">—</span>'}
+      </td>
+      <td class="text-right mono">${r.h_index ?? '—'}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="5" class="text-center text-muted py-6">데이터 없음</td></tr>`;
+}
+
+// ============================================================
+// Topics chart
+// ============================================================
+function renderTopics(works) {
+  const counts = new Map();
+  for (const w of works) {
+    const topics = (w.topics && w.topics.length) ? w.topics : (w.concepts || []);
+    for (const t of topics.slice(0, 3)) {
+      counts.set(t.display_name, (counts.get(t.display_name) || 0) + 1);
+    }
+  }
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
+
+  if (STATE.topicsChart) STATE.topicsChart.destroy();
+  STATE.topicsChart = new Chart($('#topics-chart'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(([k]) => k),
+      datasets: [{ label: '논문 수', data: sorted.map(([, v]) => v), backgroundColor: '#4A6B3F' }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { precision: 0 } } },
+    },
+  });
+}
+
+// ============================================================
+// Collaborators table
+// ============================================================
+function renderCollaborators(works) {
+  const selfId = STATE.author.id;
+  const map = new Map();
+  for (const w of works) {
+    for (const auth of (w.authorships || [])) {
+      const aid = auth.author?.id;
+      if (!aid || aid === selfId) continue;
+      if (!map.has(aid)) {
+        map.set(aid, { name: auth.author.display_name, inst: auth.institutions?.[0]?.display_name || '', count: 0, lastYear: 0, orcid: auth.author.orcid });
+      }
+      const o = map.get(aid);
+      o.count++;
+      if (w.publication_year > o.lastYear) o.lastYear = w.publication_year;
+    }
+  }
+  const sorted = [...map.values()].sort((a, b) => b.count - a.count).slice(0, 100);
+
+  $('#collab-tbody').innerHTML = sorted.map(c => `
+    <tr>
+      <td><span class="font-medium">${c.name}</span></td>
+      <td class="text-muted">${c.inst || '—'}</td>
+      <td class="text-right mono">${c.count}</td>
+      <td class="text-right mono">${c.lastYear || '—'}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="4" class="text-center text-muted py-6">데이터 없음</td></tr>`;
+}
+
+// ============================================================
+// Papers list
+// ============================================================
+function renderPapers(works) {
+  const sorted = [...works].sort((a, b) => (b.publication_year || 0) - (a.publication_year || 0));
+  $('#papers-tbody').innerHTML = sorted.slice(0, 200).map(w => {
+    const journal = w.primary_location?.source?.display_name || '';
+    const url = w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}` : (w.id || '#');
+    return `
+      <tr>
+        <td class="mono">${w.publication_year || '—'}</td>
+        <td>
+          <a href="${url}" target="_blank" class="font-medium hover:underline">${w.title || '(제목 없음)'}</a>
+          ${journal ? `<div class="text-xs text-muted mt-0.5">${journal}</div>` : ''}
+        </td>
+        <td class="text-right mono">${w.cited_by_count || 0}</td>
+      </tr>
+    `;
+  }).join('');
+  if (sorted.length > 200) {
+    $('#papers-tbody').innerHTML += `<tr><td colspan="3" class="text-center text-muted py-3 text-xs">상위 200편만 표시 (전체 ${sorted.length}편)</td></tr>`;
+  }
+}
+</script>
+</body>
+</html>

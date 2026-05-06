@@ -1,0 +1,7 @@
+{
+  "_comment": "ISSN-L → {if_2024, source} for major journals. Manually curated. Used as override when present; otherwise OpenAlex 2yr_mean_citedness is shown.",
+  "_format_example": {
+    "0033-8419": { "name": "Radiology", "if": 19.7, "year": 2024, "source": "JCR" }
+  },
+  "entries": {}
+}
