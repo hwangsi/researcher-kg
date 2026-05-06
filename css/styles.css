@@ -112,6 +112,8 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: v
 .coauthor-edge { transition: opacity 0.2s; }
 .coauthor-edge.faded { opacity: 0.05; }
 .coauthor-label { font-size: 11px; font-family: 'Pretendard Variable', system-ui, sans-serif; fill: var(--ink); pointer-events: none; transition: opacity 0.2s; }
+
+.journal-name { font-family: Arial, sans-serif; }
 .coauthor-label.faded { opacity: 0.3; }
 
 /* Status messages */

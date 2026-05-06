@@ -178,7 +178,7 @@ RKG.dotPlot = (function() {
               stepSize: 1,
               callback: v => Number.isInteger(v) ? v : '',
               color: '#6B6B6B',
-              font: { size: 11 },
+              font: { size: 11, family: 'Arial' },
             },
             grid: { color: 'rgba(0,0,0,0.04)' },
           },
@@ -190,7 +190,7 @@ RKG.dotPlot = (function() {
             ticks: {
               stepSize: 1,
               color: '#6B6B6B',
-              font: { size: 10 },
+              font: { size: 10, family: 'Arial' },
               callback: v => {
                 const i = Math.round(v);
                 if (Math.abs(v - i) > 0.01) return '';

@@ -203,7 +203,7 @@ RKG.dashboard = (function() {
 
     $('#journals-tbody').innerHTML = rows.map(r => `
       <tr>
-        <td><div class="font-medium">${r.name}</div></td>
+        <td><div class="font-medium journal-name">${r.name}</div></td>
         <td class="text-right mono">${r.papers}</td>
         <td class="text-right mono">${fmtNum(r.cites)}</td>
         <td class="text-right">
@@ -233,7 +233,7 @@ RKG.dashboard = (function() {
           <td>${rolePill}</td>
           <td>
             <a href="${url}" target="_blank" class="font-medium hover:underline">${w.title || '(제목 없음)'}</a>
-            ${journal ? `<div class="text-xs text-muted mt-0.5">${journal}</div>` : ''}
+            ${journal ? `<div class="text-xs text-muted mt-0.5 journal-name">${journal}</div>` : ''}
           </td>
           <td class="text-right mono">${w.cited_by_count || 0}</td>
         </tr>

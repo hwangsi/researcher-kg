@@ -13,6 +13,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>document.addEventListener('DOMContentLoaded', () => { if (window.Chart) Chart.defaults.font.family = 'Arial, sans-serif'; });</script>
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
@@ -32,20 +33,24 @@
   </header>
 
   <section id="search-section" class="card rounded-lg p-6 mb-6">
-    <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-4 items-end">
+    <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-4 items-end">
       <div>
         <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">저자 이름</label>
-        <input id="author-name" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="e.g. Sungil Hwang" autocomplete="off">
+        <input id="author-name" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="e.g. Yeo Ju Kim" autocomplete="off">
       </div>
       <div>
         <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">소속 기관 키워드</label>
         <input id="author-institution" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="e.g. Bundang" autocomplete="off">
       </div>
+      <div>
+        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">전문 분야 키워드</label>
+        <input id="author-specialty" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="e.g. Radiology, Surgery" autocomplete="off">
+      </div>
       <button id="search-btn" class="btn-primary px-6 py-2.5 rounded text-sm font-medium whitespace-nowrap">
         <span id="search-btn-text">검색</span>
       </button>
     </div>
-    <p class="text-xs text-muted mt-3">기관명은 키워드 일부만 입력해도 됩니다 (예: "Bundang").</p>
+    <p class="text-xs text-muted mt-3">기관명·전문 분야는 키워드 일부만 입력해도 됩니다. 같은 이름이 여러 명일 경우 전문 분야로 구분하세요 (예: "Radiology").</p>
   </section>
 
   <div id="status" class="hidden mb-6"></div>
