@@ -13,6 +13,8 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
 <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -124,6 +126,7 @@
 
     <div class="border-b rule mb-6 flex gap-6 overflow-x-auto">
       <button class="tab-btn active py-3 text-sm font-medium whitespace-nowrap" data-tab="bubble">Bubble Timeline</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="bubble3d">3D Timeline</button>
       <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="network">공저자 네트워크</button>
       <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="streamgraph">주제 진화</button>
       <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="dotplot">공저자 × 연도</button>
@@ -144,10 +147,23 @@
       </div>
     </div>
 
+    <div id="tab-bubble3d" class="tab-panel hidden">
+      <div class="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <h3 class="display text-lg">3D Timeline</h3>
+        <div class="flex items-center gap-3 flex-wrap">
+          <p class="text-xs text-muted">X: 연도 &middot; Y: 저널 IF &middot; Z: 인용 수 &nbsp;|&nbsp; 우클릭+드래그: 회전 &middot; 좌클릭+드래그: 이동 &middot; 스크롤: 확대</p>
+          <button id="bubble-3d-reset" class="text-xs px-3 py-1 rounded" style="border:1px solid var(--rule);color:var(--ink-muted);background:transparent;cursor:pointer;">시점 초기화</button>
+        </div>
+      </div>
+      <div class="card rounded" style="overflow:hidden;">
+        <div id="bubble-3d-container" style="height:580px;"></div>
+      </div>
+    </div>
+
     <div id="tab-network" class="tab-panel hidden">
       <div class="flex items-baseline justify-between mb-3 flex-wrap gap-2">
         <h3 class="display text-lg">Co-author Co-occurrence</h3>
-        <p class="text-xs text-muted">노드 = 공저자 (본인 제외) · 엣지 = 같은 논문에 등장</p>
+        <p class="text-xs text-muted">노드 = 공저자 (본인 제외) · 클릭 → 연결 목록</p>
       </div>
       <div class="card rounded p-4">
         <div class="flex items-center gap-3 mb-3 flex-wrap">
@@ -156,7 +172,10 @@
           <span id="min-papers-label" class="mono text-xs">2</span>
           <span id="network-stats" class="text-xs text-muted ml-auto"></span>
         </div>
-        <div id="network-container" style="height: 600px; position: relative;"></div>
+        <div style="display:flex;">
+          <div id="network-container" style="height:600px; position:relative; flex:1; min-width:0;"></div>
+          <div id="network-sidebar" class="hidden" style="width:220px; flex-shrink:0; height:600px; overflow-y:auto; border-left:1px solid var(--rule);"></div>
+        </div>
       </div>
     </div>
 
@@ -226,6 +245,7 @@
 <script src="js/viz/coauthor-network.js"></script>
 <script src="js/viz/streamgraph.js"></script>
 <script src="js/viz/dot-plot.js"></script>
+<script src="js/viz/bubble-3d.js"></script>
 <script src="js/dashboard.js"></script>
 
 </body>

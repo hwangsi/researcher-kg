@@ -50,6 +50,7 @@ RKG.dashboard = (function() {
       RKG.coauthorNetwork.init();
       RKG.streamgraph.init();
       RKG.dotPlot.init();
+      RKG.bubble3d.init();
 
       // Subscribe dashboard updates (stats, tables)
       RKG.state.subscribe(_renderAll);
