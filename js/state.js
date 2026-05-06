@@ -100,8 +100,9 @@ RKG.state = (function() {
   // Returns 'first' | 'senior' | 'middle' | 'none'
   function getAuthorshipRole(work) {
     if (!_state.author) return 'none';
+    const focalIds = _state.author._mergedIds || [_state.author.id];
     const auths = work.authorships || [];
-    const idx = auths.findIndex(a => a.author && a.author.id === _state.author.id);
+    const idx = auths.findIndex(a => a.author && focalIds.includes(a.author.id));
     if (idx === -1) return 'none';
     if (auths.length === 1) return 'first';
     if (idx === 0) return 'first';

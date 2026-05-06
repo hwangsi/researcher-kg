@@ -39,8 +39,8 @@ Reference: `reference/mvp-v1.html`
 - [ ] Use JCR IF when available, fallback to OpenAlex 2yr_mean_citedness
 - [ ] PubMed E-utilities integration for MeSH terms
 - [ ] Show MeSH-based topic classification alongside OpenAlex topics
-- [ ] Author ID consolidation UI (merge duplicate Korean author IDs)
-- [ ] ORCID-first search option (skip name disambiguation)
+- [x] Author ID consolidation UI (merge duplicate Korean author IDs)
+- [x] ORCID-first search option (skip name disambiguation)
 
 ## Phase 5 — Export & sharing
 
