@@ -25,6 +25,10 @@ body {
   font-family: 'Pretendard Variable', Pretendard, system-ui, -apple-system, sans-serif;
   font-feature-settings: "ss01", "ss02";
 }
+canvas {
+  font-feature-settings: normal;
+  font-variant: normal;
+}
 
 .display { font-family: 'Fraunces', 'Pretendard Variable', serif; font-optical-sizing: auto; letter-spacing: -0.02em; }
 .mono { font-family: 'JetBrains Mono', monospace; }
