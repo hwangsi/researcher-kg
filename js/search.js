@@ -14,6 +14,7 @@ RKG.search = (function() {
     $('#search-btn').addEventListener('click', runSearch);
     $('#author-name').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
     $('#author-institution').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+    $('#author-specialty').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
   }
 
   function showStatus(msg, kind = 'info') {
@@ -40,6 +41,7 @@ RKG.search = (function() {
   async function runSearch() {
     const name = $('#author-name').value.trim();
     const inst = $('#author-institution').value.trim();
+    const specialty = $('#author-specialty').value.trim();
     if (!name) { showStatus('저자 이름을 입력하세요.', 'error'); return; }
 
     hideStatus();
@@ -48,7 +50,7 @@ RKG.search = (function() {
     $('#dashboard').classList.add('hidden');
 
     try {
-      _candidates = await RKG.api.searchAuthors(name, inst);
+      _candidates = await RKG.api.searchAuthors(name, inst, specialty);
       if (!_candidates.length) {
         showStatus('일치하는 저자를 찾지 못했습니다. 이름 철자나 기관 키워드를 확인해보세요.', 'error');
         return;

@@ -220,7 +220,7 @@ RKG.bubbleTimeline = (function() {
           x: {
             type: 'linear',
             min: xMin, max: xMax,
-            ticks: { stepSize: 1, callback: v => Math.round(v), color: '#6B6B6B' },
+            ticks: { stepSize: 1, callback: v => Math.round(v), color: '#6B6B6B', font: { family: 'Arial' } },
             grid: { color: 'rgba(0,0,0,0.04)' },
           },
           y: {
@@ -228,6 +228,7 @@ RKG.bubbleTimeline = (function() {
             ticks: {
               stepSize: 1,
               color: '#6B6B6B',
+              font: { family: 'Arial' },
               callback: v => {
                 const j = _journalsList[v];
                 if (!j) return '';

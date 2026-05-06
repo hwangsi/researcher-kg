@@ -19,11 +19,13 @@ RKG.api = (function() {
     return res.json();
   }
 
-  // Search authors by name, then locally filter by institution keyword match.
-  async function searchAuthors(name, institution) {
+  // Search authors by name, then locally filter by institution and specialty keyword match.
+  async function searchAuthors(name, institution, specialty) {
     const data = await _fetch(`/authors?search=${encodeURIComponent(name)}&per-page=25`);
     const instLower = (institution || '').toLowerCase().trim();
-    const tokens = instLower.split(/\s+/).filter(t => t.length >= 3);
+    const instTokens = instLower.split(/\s+/).filter(t => t.length >= 3);
+    const specLower = (specialty || '').toLowerCase().trim();
+    const specTokens = specLower.split(/[\s,]+/).filter(t => t.length >= 3);
 
     return data.results
       .map(a => {
@@ -32,12 +34,22 @@ RKG.api = (function() {
           .filter(Boolean);
         const last = (a.last_known_institutions || []).map(x => x.display_name);
         const allInsts = [...new Set([...affs, ...last])];
-        return { ...a, _institutions: allInsts };
+
+        // Build a searchable string from x_concepts and topics fields
+        const conceptNames = (a.x_concepts || []).map(c => c.display_name || '');
+        const topicNames = (a.topics || []).flatMap(t => [
+          t.display_name,
+          t.subfield && t.subfield.display_name,
+          t.field && t.field.display_name,
+        ].filter(Boolean));
+        const specialtyText = [...conceptNames, ...topicNames].join(' | ').toLowerCase();
+
+        return { ...a, _institutions: allInsts, _specialtyText: specialtyText };
       })
       .filter(a => {
-        if (!instLower) return true;
-        const allLower = a._institutions.map(s => s.toLowerCase()).join(' | ');
-        return tokens.some(t => allLower.includes(t));
+        const instOk = !instLower || instTokens.some(t => a._institutions.map(s => s.toLowerCase()).join(' | ').includes(t));
+        const specOk = !specLower || specTokens.some(t => a._specialtyText.includes(t));
+        return instOk && specOk;
       });
   }
 

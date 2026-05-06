@@ -33,7 +33,7 @@ RKG.streamgraph = (function() {
       background: 'rgba(255,254,250,0.97)', border: '1px solid #E5DFCF',
       padding: '9px 12px', borderRadius: '4px', fontSize: '12px',
       lineHeight: '1.6', zIndex: '1000', maxWidth: '240px',
-      fontFamily: "'Pretendard Variable', system-ui, sans-serif",
+      fontFamily: "Arial, sans-serif",
       color: '#1A1A1A', boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     });
     document.body.appendChild(_tooltip);
@@ -185,7 +185,7 @@ RKG.streamgraph = (function() {
       lg.append('text')
         .attr('x', 20).attr('y', 11)
         .attr('font-size', 12).attr('fill', '#3A3A3A')
-        .attr('font-family', "'Pretendard Variable', system-ui, sans-serif")
+        .attr('font-family', "Arial, sans-serif")
         .attr('class', `sg-legend-text-${_cssId(t)}`)
         .text(t.length > 22 ? t.slice(0, 20) + '…' : t);
     });
@@ -258,7 +258,7 @@ RKG.streamgraph = (function() {
       .call(ax => ax.selectAll('.tick text')
         .attr('fill', '#4A4A4A')
         .attr('font-size', 12)
-        .attr('font-family', "'Pretendard Variable', system-ui, sans-serif")
+        .attr('font-family', "Arial, sans-serif")
       );
 
     // --- Cursor line ---
