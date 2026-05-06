@@ -158,6 +158,7 @@ Then assign each node its dominant topic for coloring.
 - Korean author names: pre-2018 OpenAlex data may split same person across IDs. Manual ID consolidation may be needed for very senior researchers.
 - Tailwind CDN: warns in dev tools but works fine for static deploy.
 - Force layout is non-deterministic — clusters appear in different positions each render. Acceptable trade-off.
+- Chart.js canvas text rendering gotcha: Chart.js는 라벨/툴팁을 <canvas>에 그리므로 CSS만으로 폰트 제어가 안 됨. body의 font-feature-settings가 canvas로 새는 문제도 있음. 차트 폰트는 반드시 Chart.defaults.font.family를 JS에서 설정 (현재 bubble-timeline.js 상단). 축별 ticks.font도 백업으로 둔다. 일부 OpenAlex 저널명에 leading control char가 있어 y축 callback에서 strip 함. 폰트 바꾸고 싶을 때는 bubble-timeline.js 상단의 Chart.defaults.font.family 와 TICK_FONT.family 두 줄만 바꾸면 됨.
 
 ## When working on this — DO and DON'T
 

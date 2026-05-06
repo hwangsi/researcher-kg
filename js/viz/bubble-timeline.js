@@ -7,6 +7,14 @@ window.RKG = window.RKG || {};
 RKG.bubbleTimeline = (function() {
   'use strict';
 
+  if (typeof Chart !== 'undefined' && Chart.defaults && Chart.defaults.font) {
+    Chart.defaults.font.family = 'Arial, "Helvetica Neue", Helvetica, "Segoe UI", system-ui, sans-serif';
+    Chart.defaults.font.size = 11;
+    Chart.defaults.font.weight = '400';
+    Chart.defaults.color = '#6B6B6B';
+  }
+  const TICK_FONT = { family: 'Arial, "Helvetica Neue", Helvetica, sans-serif', size: 11, weight: '400' };
+
   const TOPIC_PALETTE = [
     '#7F77DD', // purple
     '#1D9E75', // teal
@@ -189,7 +197,7 @@ RKG.bubbleTimeline = (function() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        layout: { padding: { top: 8, right: 16, bottom: 4, left: 4 } },
+        layout: { padding: { top: 24, right: 16, bottom: 8, left: 4 } },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -199,6 +207,8 @@ RKG.bubbleTimeline = (function() {
             borderColor: '#E5DFCF',
             borderWidth: 1,
             padding: 10,
+            titleFont: TICK_FONT,
+            bodyFont: TICK_FONT,
             callbacks: {
               label: ctx => {
                 const p = ctx.raw;
@@ -220,19 +230,21 @@ RKG.bubbleTimeline = (function() {
           x: {
             type: 'linear',
             min: xMin, max: xMax,
-            ticks: { stepSize: 1, callback: v => Math.round(v), color: '#6B6B6B', font: { family: 'Arial' } },
+            ticks: { stepSize: 1, callback: v => Math.round(v), color: '#6B6B6B', font: TICK_FONT },
             grid: { color: 'rgba(0,0,0,0.04)' },
           },
           y: {
-            min: -0.6, max: Math.max(_journalsList.length - 0.4, 0.5),
+            min: -0.7, max: Math.max(_journalsList.length - 0.2, 0.5),
             ticks: {
               stepSize: 1,
               color: '#6B6B6B',
-              font: { family: 'Arial' },
+              font: TICK_FONT,
+              padding: 6,
               callback: v => {
                 const j = _journalsList[v];
                 if (!j) return '';
-                const name = j.name.length > 28 ? j.name.slice(0, 26) + '…' : j.name;
+                const cleaned = (j.name || '').replace(/^[^\w가-힣\(\[]+/u, '').trim();
+                const name = cleaned.length > 28 ? cleaned.slice(0, 26) + '…' : cleaned;
                 return j.if_2yr ? `${name} · ${j.if_2yr.toFixed(1)}` : name;
               },
             },
