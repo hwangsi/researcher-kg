@@ -52,7 +52,11 @@ RKG.search = (function() {
     try {
       _candidates = await RKG.api.searchAuthors(name, inst, specialty);
       if (!_candidates.length) {
-        showStatus('일치하는 저자를 찾지 못했습니다. 이름 철자나 기관 키워드를 확인해보세요.', 'error');
+        if (specialty) {
+          showStatus('전문 분야 조건에 맞는 저자를 찾지 못했습니다. 전문 분야 키워드를 지우거나 바꿔 보세요.', 'error');
+        } else {
+          showStatus('일치하는 저자를 찾지 못했습니다. 이름 철자나 기관 키워드를 확인해보세요.', 'error');
+        }
         return;
       }
       renderCandidates();
@@ -71,13 +75,26 @@ RKG.search = (function() {
     list.innerHTML = _candidates.map((a, i) => {
       const insts = a._institutions.slice(0, 3).join(' · ') || '소속 미상';
       const orcid = a.orcid ? a.orcid.replace('https://orcid.org/', '') : '';
+
+      // Top research areas: prefer topics fields, fall back to x_concepts
+      const topicLabels = (a.topics || [])
+        .slice(0, 3)
+        .map(t => t.subfield ? t.subfield.display_name : t.display_name)
+        .filter(Boolean);
+      const conceptLabels = (a.x_concepts || [])
+        .filter(c => c.level === 1)
+        .slice(0, 3)
+        .map(c => c.display_name);
+      const areaLabels = topicLabels.length ? topicLabels : conceptLabels;
+
       return `
         <div class="candidate-card card rounded p-4" data-idx="${i}">
           <div class="flex items-start justify-between gap-3 mb-1">
             <p class="font-medium text-base">${a.display_name}</p>
             ${orcid ? `<span class="mono text-[10px] text-muted whitespace-nowrap">${orcid}</span>` : ''}
           </div>
-          <p class="text-xs text-muted mb-2">${insts}</p>
+          <p class="text-xs text-muted mb-1">${insts}</p>
+          ${areaLabels.length ? `<p class="text-xs text-muted mb-2" style="color:#8B2331;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
           <div class="flex gap-3 text-xs">
             <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
             <span><span class="text-muted">Cited:</span> <span class="mono">${fmtNum(a.cited_by_count)}</span></span>
