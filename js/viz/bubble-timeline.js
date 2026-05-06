@@ -86,7 +86,7 @@ RKG.bubbleTimeline = (function() {
 
   function _bubbleRadius(work, role) {
     const cites = work.cited_by_count || 0;
-    const base = Math.sqrt(cites) * 0.75 + 4;
+    const base = Math.min(Math.sqrt(cites) * 0.38 + 2.5, 18);
     return role === 'middle' ? base * 0.55 : base;
   }
 
