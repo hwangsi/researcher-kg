@@ -42,18 +42,27 @@ RKG.api = (function() {
   }
 
   // Cursor-paginated fetch of all works for an author.
+  // Sort is intentionally omitted — sorting by a non-unique field like publication_year
+  // causes non-deterministic cursor pagination (records skipped at page boundaries).
+  // Default sort (by ID) is stable and ensures complete retrieval.
   // onProgress(count) called each page.
+  const WORK_SELECT = [
+    'id', 'doi', 'title', 'publication_year',
+    'cited_by_count', 'primary_location',
+    'authorships', 'topics', 'concepts',
+  ].join(',');
+
   async function fetchAllWorks(authorId, onProgress) {
     const works = [];
     let cursor = '*';
     let safety = 0;
-    while (cursor && safety < 50) {
+    while (cursor && safety < 100) {
       const data = await _fetch(
-        `/works?filter=author.id:${authorId}&per-page=200&cursor=${encodeURIComponent(cursor)}&sort=publication_year:desc`
+        `/works?filter=author.id:${authorId}&per-page=200&cursor=${encodeURIComponent(cursor)}&select=${WORK_SELECT}`
       );
       works.push(...data.results);
       if (onProgress) onProgress(works.length);
-      cursor = data.meta.next_cursor;
+      cursor = data.meta && data.meta.next_cursor;
       if (!cursor) break;
       safety++;
     }

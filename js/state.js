@@ -50,7 +50,8 @@ RKG.state = (function() {
     if (_state.works.length) {
       const years = _state.works.map(w => w.publication_year).filter(Boolean);
       _state.yearMin = Math.min(...years);
-      _state.yearMax = Math.max(...years);
+      // Always extend upper bound to the current year so recent papers are never cut off.
+      _state.yearMax = Math.max(Math.max(...years), new Date().getFullYear());
       _state.filteredYearMin = _state.yearMin;
       _state.filteredYearMax = _state.yearMax;
     }
