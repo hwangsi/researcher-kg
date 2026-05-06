@@ -8,6 +8,9 @@ window.RKG = window.RKG || {};
 RKG.coauthorNetwork = (function() {
   'use strict';
 
+  let _currentNodes = [];
+  let _currentEdges = [];
+
   const W = 800, H = 600;
 
   const TOPIC_PALETTE = [
@@ -184,6 +187,8 @@ RKG.coauthorNetwork = (function() {
     const s = RKG.state.get();
     const works = _networkWorks();
     const { nodes, edges, topicColor } = _buildGraph(works, s.author.id, s.minCoauthorPapers);
+    _currentNodes = nodes;
+    _currentEdges = edges;
 
     _updateNetworkStats(nodes.length, edges.length, topicColor);
 
@@ -221,7 +226,12 @@ RKG.coauthorNetwork = (function() {
       .attr('stroke-width', 1.5)
       .on('click', (event, d) => {
         const cur = RKG.state.get().selectedCoauthor;
-        RKG.state.setSelectedCoauthor(cur === d.id ? null : d.id);
+        if (cur === d.id) {
+          RKG.state.setSelectedCoauthor(null);
+        } else {
+          RKG.state.setSelectedCoauthor(d.id);
+          _showSidebar(d);
+        }
       })
       .call(d3.drag()
         .on('start', (event, d) => {
@@ -240,7 +250,7 @@ RKG.coauthorNetwork = (function() {
       .data(nodes).enter().append('text')
       .attr('class', 'coauthor-label')
       .attr('text-anchor', 'middle')
-      .attr('font-size', d => Math.max(9, Math.min(13, 8 + d.r * 0.15)))
+      .attr('font-size', d => Math.max(7, Math.min(10, 6.5 + d.r * 0.08)))
       .text(d => d.name);
 
     _simulation = d3.forceSimulation(nodes)
@@ -269,6 +279,8 @@ RKG.coauthorNetwork = (function() {
     const edges = _gEdges.selectAll('line');
 
     if (!sel) {
+      const sidebar = document.getElementById('network-sidebar');
+      if (sidebar) sidebar.classList.add('hidden');
       nodes.classed('faded', false).classed('selected', false);
       labels.classed('faded', false);
       edges.classed('faded', false);
@@ -298,6 +310,50 @@ RKG.coauthorNetwork = (function() {
   }
 
   // ----- helpers -----
+
+  function _showSidebar(node) {
+    const el = document.getElementById('network-sidebar');
+    if (!el) return;
+
+    // Edges connected to this node (after D3 resolves IDs to objects)
+    const connected = _currentEdges
+      .filter(e => {
+        const sId = typeof e.source === 'object' ? e.source.id : e.source;
+        const tId = typeof e.target === 'object' ? e.target.id : e.target;
+        return sId === node.id || tId === node.id;
+      })
+      .map(e => {
+        const sId = typeof e.source === 'object' ? e.source.id : e.source;
+        const tId = typeof e.target === 'object' ? e.target.id : e.target;
+        const otherId = sId === node.id ? tId : sId;
+        const other = _currentNodes.find(n => n.id === otherId);
+        return { name: other ? other.name : '?', count: e.value };
+      })
+      .sort((a, b) => b.count - a.count);
+
+    el.classList.remove('hidden');
+    el.innerHTML = `
+      <div style="padding:12px 14px; border-bottom:1px solid var(--rule);">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:4px; margin-bottom:6px;">
+          <p style="font-weight:600; font-size:13px; line-height:1.35;">${node.name}</p>
+          <button data-close-sidebar style="background:none; border:none; cursor:pointer; color:var(--ink-muted); font-size:18px; line-height:1; flex-shrink:0; padding:0 2px;">&times;</button>
+        </div>
+        ${node.inst ? `<p style="font-size:11px; color:var(--ink-muted); margin-bottom:4px; line-height:1.4;">${node.inst}</p>` : ''}
+        <p style="font-size:11px; color:var(--ink-muted);">본인과 공저 <strong style="color:var(--ink);">${node.count}회</strong></p>
+      </div>
+      <div style="padding:10px 14px;">
+        <p style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-muted); margin-bottom:8px;">함께 공저한 연구자</p>
+        ${connected.length ? connected.map((c, i) => `
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-top:1px solid var(--rule);">
+            <span style="font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:152px;" title="${c.name}">${i + 1}. ${c.name}</span>
+            <span style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--ink-muted); flex-shrink:0; margin-left:4px;">${c.count}</span>
+          </div>`).join('') : '<p style="font-size:11px; color:var(--ink-muted);">없음</p>'}
+      </div>`;
+
+    el.querySelector('[data-close-sidebar]').addEventListener('click', () => {
+      RKG.state.setSelectedCoauthor(null);
+    });
+  }
 
   function _darken(hex, factor = 0.7) {
     const r = Math.round(parseInt(hex.slice(1, 3), 16) * factor);
