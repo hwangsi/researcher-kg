@@ -167,10 +167,11 @@ RKG.dashboard = (function() {
     const years = works.map(w => w.publication_year).filter(Boolean);
     const yearsActive = years.length ? (Math.max(...years) - Math.min(...years) + 1) : 0;
 
+    const focalIds = new Set(s.author._mergedIds || [s.author.id]);
     const coauthors = new Set();
     for (const w of works) {
       for (const auth of (w.authorships || [])) {
-        if (auth.author && auth.author.id && auth.author.id !== s.author.id) {
+        if (auth.author && auth.author.id && !focalIds.has(auth.author.id)) {
           coauthors.add(auth.author.id);
         }
       }

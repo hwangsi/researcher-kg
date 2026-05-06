@@ -105,13 +105,13 @@ RKG.coauthorNetwork = (function() {
 
   // ----- graph construction -----
 
-  function _buildGraph(works, focalId, minPapers) {
+  function _buildGraph(works, focalIds, minPapers) {
     const nodeInfo = new Map();   // id -> {name, inst, count, topicCounts}
     const pairs = new Map();      // "id1__id2" -> count
 
     for (const w of works) {
       const others = (w.authorships || [])
-        .filter(a => a.author && a.author.id && a.author.id !== focalId)
+        .filter(a => a.author && a.author.id && !focalIds.includes(a.author.id))
         .map(a => ({
           id: a.author.id,
           name: a.author.display_name,
@@ -186,7 +186,8 @@ RKG.coauthorNetwork = (function() {
   function _build() {
     const s = RKG.state.get();
     const works = _networkWorks();
-    const { nodes, edges, topicColor } = _buildGraph(works, s.author.id, s.minCoauthorPapers);
+    const focalIds = s.author._mergedIds || [s.author.id];
+    const { nodes, edges, topicColor } = _buildGraph(works, focalIds, s.minCoauthorPapers);
     _currentNodes = nodes;
     _currentEdges = edges;
 

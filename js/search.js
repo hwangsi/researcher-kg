@@ -9,12 +9,22 @@ RKG.search = (function() {
   const $$ = sel => [...document.querySelectorAll(sel)];
 
   let _candidates = [];
+  let _selectedIds = new Set(); // indices into _candidates
 
   function init() {
     $('#search-btn').addEventListener('click', runSearch);
-    $('#author-name').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
-    $('#author-institution').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
-    $('#author-specialty').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+    ['#author-name', '#author-institution', '#author-specialty', '#author-orcid-input'].forEach(id => {
+      $(id).addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+    });
+    $('#merge-selected-btn').addEventListener('click', () => {
+      if (_selectedIds.size < 2) return;
+      mergeAndSelect([..._selectedIds].map(i => _candidates[i]));
+    });
+    $('#clear-selection-btn').addEventListener('click', () => {
+      _selectedIds = new Set();
+      $$('#candidates-list .candidate-check').forEach(cb => { cb.checked = false; });
+      _updateMergeBtn();
+    });
   }
 
   function showStatus(msg, kind = 'info') {
@@ -38,16 +48,34 @@ RKG.search = (function() {
     return String(n);
   }
 
+  function _updateMergeBtn() {
+    const n = _selectedIds.size;
+    $('#merge-selected-btn').disabled = n < 2;
+    $('#merge-count').textContent = n;
+  }
+
   async function runSearch() {
+    const orcid = $('#author-orcid-input').value.trim();
     const name = $('#author-name').value.trim();
     const inst = $('#author-institution').value.trim();
     const specialty = $('#author-specialty').value.trim();
-    if (!name) { showStatus('저자 이름을 입력하세요.', 'error'); return; }
+
+    if (!orcid && !name) { showStatus('저자 이름 또는 ORCID를 입력하세요.', 'error'); return; }
 
     hideStatus();
     setSearching(true);
     $('#candidates-section').classList.add('hidden');
     $('#dashboard').classList.add('hidden');
+
+    if (orcid) {
+      try {
+        const results = await RKG.api.searchByOrcid(orcid);
+        if (results.length === 1) { selectAuthor(results[0]); return; }
+        if (results.length > 1) { _candidates = results; renderCandidates(); return; }
+        showStatus('해당 ORCID로 등록된 저자가 없습니다.', 'error'); return;
+      } catch (e) { showStatus(e.message, 'error'); return; }
+      finally { setSearching(false); }
+    }
 
     try {
       _candidates = await RKG.api.searchAuthors(name, inst, specialty);
@@ -68,6 +96,9 @@ RKG.search = (function() {
   }
 
   function renderCandidates() {
+    _selectedIds = new Set();
+    _updateMergeBtn();
+
     const list = $('#candidates-list');
     $('#candidate-count').textContent =
       `${_candidates.length} candidate${_candidates.length === 1 ? '' : 's'}`;
@@ -76,7 +107,6 @@ RKG.search = (function() {
       const insts = a._institutions.slice(0, 3).join(' · ') || '소속 미상';
       const orcid = a.orcid ? a.orcid.replace('https://orcid.org/', '') : '';
 
-      // Top research areas: prefer topics fields, fall back to x_concepts
       const topicLabels = (a.topics || [])
         .slice(0, 3)
         .map(t => t.subfield ? t.subfield.display_name : t.display_name)
@@ -88,13 +118,14 @@ RKG.search = (function() {
       const areaLabels = topicLabels.length ? topicLabels : conceptLabels;
 
       return `
-        <div class="candidate-card card rounded p-4" data-idx="${i}">
-          <div class="flex items-start justify-between gap-3 mb-1">
-            <p class="font-medium text-base">${a.display_name}</p>
+        <div class="candidate-card card rounded p-4 relative" data-idx="${i}">
+          <input type="checkbox" class="candidate-check absolute top-3 right-3 w-4 h-4 cursor-pointer" data-idx="${i}">
+          <div class="flex items-start gap-3 mb-1 pr-6">
+            <p class="font-medium text-base flex-1">${a.display_name}</p>
             ${orcid ? `<span class="mono text-[10px] text-muted whitespace-nowrap">${orcid}</span>` : ''}
           </div>
           <p class="text-xs text-muted mb-1">${insts}</p>
-          ${areaLabels.length ? `<p class="text-xs text-muted mb-2" style="color:#8B2331;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
+          ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#8B2331;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
           <div class="flex gap-3 text-xs">
             <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
             <span><span class="text-muted">Cited:</span> <span class="mono">${fmtNum(a.cited_by_count)}</span></span>
@@ -107,38 +138,77 @@ RKG.search = (function() {
     }).join('');
 
     $$('#candidates-list .candidate-card').forEach(el => {
-      el.addEventListener('click', () => selectAuthor(_candidates[+el.dataset.idx]));
+      el.addEventListener('click', e => {
+        if (e.target.type === 'checkbox') return;
+        selectAuthor(_candidates[+el.dataset.idx]);
+      });
+    });
+
+    $$('#candidates-list .candidate-check').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const idx = +cb.dataset.idx;
+        if (cb.checked) _selectedIds.add(idx); else _selectedIds.delete(idx);
+        _updateMergeBtn();
+      });
     });
 
     $('#candidates-section').classList.remove('hidden');
   }
 
+  async function _loadWorksAndActivate(author, idList) {
+    const allWorks = [];
+    const seen = new Set();
+    for (const id of idList) {
+      const w = await RKG.api.fetchAllWorks(id, c => {
+        showStatus(`<span class="loader" style="vertical-align:-2px;"></span> 논문 로딩 중... (${allWorks.length + c}개${idList.length > 1 ? ', ' + idList.length + '개 ID 병합 중' : ''})`);
+      });
+      for (const work of w) {
+        const key = work.doi || work.id;
+        if (!seen.has(key)) { seen.add(key); allWorks.push(work); }
+      }
+    }
+
+    const sourceIds = new Set();
+    for (const w of allWorks) {
+      const src = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      if (src) sourceIds.add(src);
+    }
+
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${sourceIds.size}개 저널의 IF 정보를 가져오는 중...`);
+    const stats = await RKG.api.fetchSourceStats(sourceIds);
+
+    RKG.state.setWorks(allWorks);
+    RKG.state.setSourceStats(stats);
+    hideStatus();
+    RKG.dashboard.activate();
+  }
+
   async function selectAuthor(author) {
     $('#candidates-section').classList.add('hidden');
     showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${author.display_name} 의 논문을 불러오는 중...`);
-
     RKG.state.setAuthor(author);
-
     try {
-      const works = await RKG.api.fetchAllWorks(author.id, count => {
-        showStatus(`<span class="loader" style="vertical-align:-2px;"></span> 논문 로딩 중... (${count}개)`);
-      });
+      await _loadWorksAndActivate(author, [author.id]);
+    } catch (e) {
+      showStatus(`데이터 로딩 실패: ${e.message}`, 'error');
+    }
+  }
 
-      // Collect source IDs and fetch IFs
-      const sourceIds = new Set();
-      for (const w of works) {
-        const src = w.primary_location && w.primary_location.source && w.primary_location.source.id;
-        if (src) sourceIds.add(src);
-      }
-
-      showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${sourceIds.size}개 저널의 IF 정보를 가져오는 중...`);
-      const stats = await RKG.api.fetchSourceStats(sourceIds);
-
-      RKG.state.setWorks(works);
-      RKG.state.setSourceStats(stats);
-
-      hideStatus();
-      RKG.dashboard.activate();
+  async function mergeAndSelect(authors) {
+    $('#candidates-section').classList.add('hidden');
+    const merged = {
+      id: 'merged:' + authors.map(a => a.id).join(','),
+      display_name: authors[0].display_name + ` (${authors.length} IDs 병합)`,
+      _institutions: [...new Set(authors.flatMap(a => a._institutions))],
+      _mergedIds: authors.map(a => a.id),
+      works_count: authors.reduce((s, a) => s + (a.works_count || 0), 0),
+      cited_by_count: authors.reduce((s, a) => s + (a.cited_by_count || 0), 0),
+      orcid: (authors.find(a => a.orcid) || {}).orcid || null,
+    };
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${merged.display_name} 의 논문을 불러오는 중...`);
+    RKG.state.setAuthor(merged);
+    try {
+      await _loadWorksAndActivate(merged, merged._mergedIds);
     } catch (e) {
       showStatus(`데이터 로딩 실패: ${e.message}`, 'error');
     }

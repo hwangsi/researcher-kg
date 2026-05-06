@@ -111,5 +111,18 @@ RKG.api = (function() {
     return stats;
   }
 
-  return { searchAuthors, fetchAllWorks, fetchSourceStats };
+  async function searchByOrcid(orcid) {
+    const clean = orcid.trim().replace(/^https?:\/\/orcid\.org\//, '');
+    if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/i.test(clean)) {
+      throw new Error('ORCID 형식이 올바르지 않습니다 (예: 0000-0002-9574-5069)');
+    }
+    const data = await _fetch(`/authors?filter=orcid:${encodeURIComponent(clean)}&per-page=5`);
+    return data.results.map(a => {
+      const affs = (a.affiliations || []).map(x => x.institution && x.institution.display_name).filter(Boolean);
+      const last = (a.last_known_institutions || []).map(x => x.display_name);
+      return { ...a, _institutions: [...new Set([...affs, ...last])] };
+    });
+  }
+
+  return { searchAuthors, searchByOrcid, fetchAllWorks, fetchSourceStats };
 })();

@@ -34,6 +34,10 @@ Name + institution keyword match → list of candidates → user picks. **Never 
 
 Filter logic: case-insensitive substring match on the institution string against `affiliations[].institution.display_name` and `last_known_institutions[].display_name`. Tokens of length ≥3 required.
 
+ORCID-first: 검색 폼의 ORCID 필드 사용 시 `/authors?filter=orcid:{}` 로 직접 조회. 가장 정확한 disambiguation. 단일 결과면 자동으로 선택 → 로딩 시작.
+
+Multi-ID merge: OpenAlex가 한국인 이름의 같은 사람을 여러 ID로 split하는 경우가 잦음. 후보 picker에서 체크박스로 여러 ID 선택 후 병합. 병합된 author는 `_mergedIds` 배열을 가지며, 모든 모듈에서 `author.id` 단일 비교 대신 `focalIds = author._mergedIds || [author.id]` 패턴 사용 (state.js, dashboard.js, coauthor-network.js). works 로딩 시 각 ID에 fetchAllWorks 호출 후 DOI/id 기준 중복 제거.
+
 ## Impact factor handling
 
 - **No JCR IF.** Clarivate doesn't expose IF via API; scraping is TOS violation.
