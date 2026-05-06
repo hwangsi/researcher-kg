@@ -250,7 +250,7 @@ RKG.coauthorNetwork = (function() {
       .data(nodes).enter().append('text')
       .attr('class', 'coauthor-label')
       .attr('text-anchor', 'middle')
-      .attr('font-size', d => Math.max(7, Math.min(10, 6.5 + d.r * 0.08)))
+      .attr('font-size', d => Math.max(5, Math.min(7, 4.6 + d.r * 0.056)))
       .text(d => d.name);
 
     _simulation = d3.forceSimulation(nodes)
