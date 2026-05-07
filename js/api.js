@@ -127,8 +127,10 @@ RKG.api = (function() {
 
   // Batch fetch source (journal) details for IF info.
   // Input: iterable of OpenAlex source IDs (full URLs).
-  // Returns: Map<sourceId, {display_name, host_org, if_2yr, h_index, works_count, issn_l}>.
+  // Returns: Map<sourceId, {display_name, host_org, if_2yr, if_source, h_index, works_count, issn_l}>.
+  // if_source: 'JCR' when from JCR 2025 data, 'OA' when from OpenAlex 2yr citedness.
   async function fetchSourceStats(sourceIds) {
+    const jcr = window.RKG && window.RKG.jcrData;
     const stats = new Map();
     const ids = [...sourceIds].filter(Boolean);
     for (let i = 0; i < ids.length; i += 50) {
@@ -137,12 +139,28 @@ RKG.api = (function() {
       try {
         const data = await _fetch(`/sources?filter=ids.openalex:${filterIds}&per-page=50`);
         for (const s of data.results) {
+          // Try JCR lookup: check issn_l then all ISSNs from OpenAlex
+          let if_2yr = null;
+          let if_source = 'OA';
+          if (jcr) {
+            const issns = [s.issn_l, ...(s.issn || [])].filter(Boolean);
+            for (const issn of issns) {
+              if (jcr[issn] != null) {
+                if_2yr = jcr[issn];
+                if_source = 'JCR';
+                break;
+              }
+            }
+          }
+          // Fall back to OpenAlex 2yr mean citedness
+          if (if_2yr === null && s.summary_stats && s.summary_stats['2yr_mean_citedness'] != null) {
+            if_2yr = s.summary_stats['2yr_mean_citedness'];
+          }
           stats.set(s.id, {
             display_name: s.display_name,
             host_org: s.host_organization_name || '',
-            if_2yr: s.summary_stats && s.summary_stats['2yr_mean_citedness'] != null
-              ? s.summary_stats['2yr_mean_citedness']
-              : null,
+            if_2yr,
+            if_source,
             h_index: s.summary_stats ? s.summary_stats.h_index : null,
             works_count: s.works_count,
             issn_l: s.issn_l,
