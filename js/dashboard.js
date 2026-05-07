@@ -246,7 +246,7 @@ RKG.dashboard = (function() {
     const rows = [...counts.entries()]
       .map(([sid, c]) => {
         const stat = s.sourceStats.get(sid) || {};
-        return { sid, name: stat.display_name || 'Unknown', if_2yr: stat.if_2yr, h_index: stat.h_index, ...c };
+        return { sid, name: stat.display_name || 'Unknown', if_2yr: stat.if_2yr, if_source: stat.if_source, h_index: stat.h_index, ...c };
       });
 
     const jc = _journalSort;
@@ -272,7 +272,9 @@ RKG.dashboard = (function() {
         <td class="text-right mono">${r.papers}</td>
         <td class="text-right mono">${fmtNum(r.cites)}</td>
         <td class="text-right">
-          ${r.if_2yr != null ? `<span class="pill pill-accent mono">${fmtFloat(r.if_2yr, 2)}</span>` : '<span class="text-muted">—</span>'}
+          ${r.if_2yr != null
+            ? `<span class="pill pill-accent mono">${fmtFloat(r.if_2yr, 2)}</span>${r.if_source === 'OA' ? '<span class="text-muted" style="font-size:9px;margin-left:2px;" title="OpenAlex 2yr citedness">OA</span>' : ''}`
+            : '<span class="text-muted">—</span>'}
         </td>
         <td class="text-right mono">${r.h_index != null ? r.h_index : '—'}</td>
       </tr>

@@ -229,7 +229,7 @@
             <th>저널</th>
             <th class="text-right" data-sort="papers">논문 수<span class="sort-arrow" style="font-size:10px;"> ↓</span></th>
             <th class="text-right" data-sort="cites">총 인용<span class="sort-arrow" style="font-size:10px;"></span></th>
-            <th class="text-right" data-sort="if">IF (2yr)<span class="sort-arrow" style="font-size:10px;"></span></th>
+            <th class="text-right" data-sort="if">JCR IF<span class="sort-arrow" style="font-size:10px;"></span></th>
             <th class="text-right" data-sort="hindex">h-index<span class="sort-arrow" style="font-size:10px;"></span></th>
           </tr></thead>
           <tbody id="journals-tbody"></tbody>
@@ -261,6 +261,7 @@
 </div>
 
 <!-- Module load order matters: state → api → search/dashboard → viz -->
+<script src="data/jcr-if.js"></script>
 <script src="js/state.js"></script>
 <script src="js/api.js"></script>
 <script src="js/search.js"></script>
