@@ -30,6 +30,19 @@ canvas {
   font-variant: normal;
 }
 
+/* Data display text — neutralize body's font-feature-settings and use Arial. */
+/* Targets: journals table, papers table, streamgraph & dot-plot containers, */
+/* co-author network SVG labels. UI chrome (.display headings, inputs)은 기존 폰트 유지. */
+table.kg-table td,
+table.kg-table th,
+#streamgraph-container,
+#dotplot-container,
+.coauthor-label {
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-feature-settings: normal;
+  font-variant: normal;
+}
+
 .display { font-family: 'Fraunces', 'Pretendard Variable', serif; font-optical-sizing: auto; letter-spacing: -0.02em; }
 .mono { font-family: 'JetBrains Mono', monospace; }
 .rule { border-color: var(--rule); }
