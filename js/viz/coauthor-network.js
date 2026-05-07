@@ -14,10 +14,10 @@ RKG.coauthorNetwork = (function() {
   const W = 800, H = 600;
 
   const TOPIC_PALETTE = [
-    '#7F77DD', '#1D9E75', '#EF9F27', '#D85A30',
-    '#355374', '#6B4A7E', '#4A6B3F',
+    '#0078D4', '#00B294', '#FF8C00', '#E81123',
+    '#8764B8', '#00B7C3', '#498205',
   ];
-  const OTHER_COLOR = '#888780';
+  const OTHER_COLOR = '#69797E';
 
   let _container = null;
   let _svg = null;

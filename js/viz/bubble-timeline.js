@@ -16,15 +16,15 @@ RKG.bubbleTimeline = (function() {
   const TICK_FONT = { family: 'Arial, "Helvetica Neue", Helvetica, sans-serif', size: 11, weight: '400' };
 
   const TOPIC_PALETTE = [
-    '#7F77DD', // purple
-    '#1D9E75', // teal
-    '#EF9F27', // amber
-    '#D85A30', // coral
-    '#355374', // blue
-    '#6B4A7E', // plum
-    '#4A6B3F', // green
+    '#0078D4', // metro blue
+    '#00B294', // metro teal
+    '#FF8C00', // metro orange
+    '#E81123', // metro red
+    '#8764B8', // metro purple
+    '#00B7C3', // metro cyan
+    '#498205', // metro green
   ];
-  const OTHER_COLOR = '#888780';
+  const OTHER_COLOR = '#69797E';
   const MAX_JOURNALS = 18;
 
   let _chart = null;
@@ -92,10 +92,14 @@ RKG.bubbleTimeline = (function() {
     return map;
   }
 
-  function _bubbleRadius(work, role) {
-    const cites = work.cited_by_count || 0;
-    const base = Math.min(Math.sqrt(cites) * 0.38 + 2.5, 18);
-    return role === 'middle' ? base * 0.55 : base;
+  // Normalize bubble radius against the max citations in the current filtered set
+  // so relative size differences are always visible regardless of absolute scale.
+  function _bubbleRadius(cites, role, maxCites) {
+    const MIN_R = 3.5, MAX_R = 32;
+    const r = maxCites > 0
+      ? MIN_R + Math.sqrt(cites / maxCites) * (MAX_R - MIN_R)
+      : MIN_R;
+    return role === 'middle' ? r * 0.6 : r;
   }
 
   function _styleForRole(color, role) {
@@ -148,6 +152,7 @@ RKG.bubbleTimeline = (function() {
     _topicMap = _buildTopicMap(works);
 
     const journalIdx = new Map(_journalsList.map((j, i) => [j.sid, i]));
+    const maxCites = works.reduce((m, w) => Math.max(m, w.cited_by_count || 0), 1);
 
     const points = [];
     for (const w of works) {
@@ -159,7 +164,7 @@ RKG.bubbleTimeline = (function() {
 
       const topic = RKG.state.getPrimaryTopic(w);
       const color = _topicMap.get(topic) || OTHER_COLOR;
-      const r = _bubbleRadius(w, role);
+      const r = _bubbleRadius(w.cited_by_count || 0, role, maxCites);
       const style = _styleForRole(color, role);
 
       points.push({
