@@ -133,8 +133,9 @@ RKG.streamgraph = (function() {
     const series = stack(data);
 
     // --- Layout ---
-    const legendRows = Math.ceil(topTopics.length / 4);
-    const LEGEND_H = legendRows * 26 + 10;
+    const cols = Math.min(2, topTopics.length);
+    const legendRows = Math.ceil(topTopics.length / cols);
+    const LEGEND_H = legendRows * 26 + 14;
     const M = { top: 10, right: 20, bottom: 34, left: 44, legendTop: LEGEND_H };
     const innerW = W - M.left - M.right;
     const innerH = H - M.top - M.bottom - M.legendTop;
@@ -164,8 +165,8 @@ RKG.streamgraph = (function() {
       .attr('viewBox', `0 0 ${W} ${H}`);
 
     // --- Legend ---
-    const cols = Math.min(4, topTopics.length);
-    const cellW = Math.min(180, Math.floor(innerW / cols));
+    // 2 columns so each cell is wide enough to show full topic names without clipping
+    const cellW = Math.floor(innerW / cols);
     const legendG = svg.append('g')
       .attr('transform', `translate(${M.left}, ${M.top})`);
 
@@ -178,16 +179,18 @@ RKG.streamgraph = (function() {
         .on('click', () => _toggleTopic(t, paths));
 
       lg.append('rect')
-        .attr('width', 14).attr('height', 14).attr('rx', 2).attr('y', -1)
+        .attr('width', 13).attr('height', 13).attr('rx', 2).attr('y', 0)
         .attr('fill', topicColor.get(t))
         .attr('class', `sg-legend-${_cssId(t)}`);
 
+      // Max chars that fit in cellW at 12px Arial (avg ~6.8px/char), leave room for rect+gap
+      const maxChars = Math.floor((cellW - 22) / 6.8);
       lg.append('text')
-        .attr('x', 20).attr('y', 11)
+        .attr('x', 20).attr('y', 12)
         .attr('font-size', 12).attr('fill', '#3A3A3A')
-        .attr('font-family', "Arial, sans-serif")
+        .attr('font-family', 'Arial, sans-serif')
         .attr('class', `sg-legend-text-${_cssId(t)}`)
-        .text(t.length > 22 ? t.slice(0, 20) + '…' : t);
+        .text(t.length > maxChars ? t.slice(0, maxChars - 1) + '…' : t);
     });
 
     // --- Chart group ---

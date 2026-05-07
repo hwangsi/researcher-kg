@@ -103,6 +103,9 @@ RKG.bubble3d = (function() {
     });
     _container.appendChild(_tooltip);
 
+    // Axis labels (HTML overlays — always readable regardless of camera angle)
+    _addAxisLabels();
+
     // Reset button
     const resetBtn = document.getElementById('bubble-3d-reset');
     if (resetBtn) resetBtn.addEventListener('click', _resetCamera);
@@ -112,6 +115,25 @@ RKG.bubble3d = (function() {
     window.addEventListener('resize', _resize);
 
     _animate();
+  }
+
+  function _addAxisLabels() {
+    const base = 'position:absolute;pointer-events:none;font-size:11px;color:#5A5A5A;background:rgba(255,254,250,0.85);padding:2px 8px;border-radius:3px;font-family:Arial,sans-serif;border:1px solid rgba(200,196,185,0.6);white-space:nowrap;';
+
+    const xLbl = document.createElement('div');
+    xLbl.style.cssText = base + 'bottom:14px;right:14px;';
+    xLbl.textContent = 'X: 연도';
+    _container.appendChild(xLbl);
+
+    const yLbl = document.createElement('div');
+    yLbl.style.cssText = base + 'top:50%;left:6px;transform:translateY(-50%) rotate(-90deg);transform-origin:center center;';
+    yLbl.textContent = 'Y: 저널 IF';
+    _container.appendChild(yLbl);
+
+    const zLbl = document.createElement('div');
+    zLbl.style.cssText = base + 'bottom:14px;left:50%;transform:translateX(-50%);';
+    zLbl.textContent = 'Z: 인용 수 (√)';
+    _container.appendChild(zLbl);
   }
 
   function _resetCamera() {

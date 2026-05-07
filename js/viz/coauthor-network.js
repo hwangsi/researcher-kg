@@ -192,6 +192,7 @@ RKG.coauthorNetwork = (function() {
     _currentEdges = edges;
 
     _updateNetworkStats(nodes.length, edges.length, topicColor);
+    _renderNetworkLegend(topicColor);
 
     if (_simulation) _simulation.stop();
     _gEdges.selectAll('*').remove();
@@ -354,6 +355,43 @@ RKG.coauthorNetwork = (function() {
     el.querySelector('[data-close-sidebar]').addEventListener('click', () => {
       RKG.state.setSelectedCoauthor(null);
     });
+  }
+
+  function _renderNetworkLegend(topicColor) {
+    // HTML overlay — always at true bottom-right of the container, regardless of SVG scaling
+    const existing = _container.querySelector('.network-legend-html');
+    if (existing) existing.remove();
+    if (!topicColor.size) return;
+
+    const entries = [...topicColor.entries()];
+    const div = document.createElement('div');
+    div.className = 'network-legend-html';
+    Object.assign(div.style, {
+      position: 'absolute', right: '0', bottom: '0',
+      zIndex: '10', pointerEvents: 'none',
+      background: 'rgba(255,254,250,0.96)',
+      border: '1px solid #CCC8B8',
+      borderRadius: '5px 0 0 0',
+      padding: '7px 10px 8px',
+      fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif',
+      fontFeatureSettings: 'normal',
+      fontVariant: 'normal',
+      fontSize: '10.5px',
+      color: '#1A1A1A',
+      lineHeight: '1.85',
+      minWidth: '160px',
+    });
+
+    const FS = 'font-family:Arial,"Helvetica Neue",Helvetica,sans-serif;font-feature-settings:normal;font-variant:normal;';
+    let html = `<div style="${FS}font-size:9px;font-weight:700;color:#9B9B9B;letter-spacing:0.06em;margin-bottom:4px;">TOPIC</div>`;
+    entries.forEach(([topic, color]) => {
+      html += `<div style="display:flex;align-items:center;gap:6px;">
+        <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0;display:inline-block;"></span>
+        <span style="${FS}font-size:10.5px;">${topic.length > 23 ? topic.slice(0, 21) + '…' : topic}</span>
+      </div>`;
+    });
+    div.innerHTML = html;
+    _container.appendChild(div);
   }
 
   function _darken(hex, factor = 0.7) {
