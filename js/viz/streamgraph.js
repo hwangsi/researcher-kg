@@ -11,8 +11,8 @@ RKG.streamgraph = (function() {
 
   const MAX_TOPICS = 8;
   const TOPIC_PALETTE = [
-    '#7F77DD', '#1D9E75', '#EF9F27', '#D85A30',
-    '#355374', '#6B4A7E', '#4A6B3F', '#B05A5A',
+    '#0078D4', '#00B294', '#FF8C00', '#E81123',
+    '#8764B8', '#00B7C3', '#498205', '#C239B3',
   ];
   const FADE_OPACITY = 0.08;
   const ACTIVE_OPACITY = 0.88;
