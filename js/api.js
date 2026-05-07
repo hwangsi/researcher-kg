@@ -19,38 +19,82 @@ RKG.api = (function() {
     return res.json();
   }
 
-  // Search authors by name, then locally filter by institution and specialty keyword match.
-  async function searchAuthors(name, institution, specialty) {
-    const data = await _fetch(`/authors?search=${encodeURIComponent(name)}&per-page=25`);
-    const instLower = (institution || '').toLowerCase().trim();
-    const instTokens = instLower.split(/\s+/).filter(t => t.length >= 3);
-    const specLower = (specialty || '').toLowerCase().trim();
+  // Search authors by name AND institution (server-side AND filter via OpenAlex institution IDs).
+  // Falls back to local AND-token filter if institution lookup fails.
+  async function searchAuthors(name, institution, specialty, koreaOnly) {
+    const instKeyword = (institution || '').trim();
+    const specLower  = (specialty  || '').toLowerCase().trim();
     const specTokens = specLower.split(/[\s,]+/).filter(t => t.length >= 3);
 
-    return data.results
-      .map(a => {
-        const affs = (a.affiliations || [])
-          .map(x => x.institution && x.institution.display_name)
-          .filter(Boolean);
-        const last = (a.last_known_institutions || []).map(x => x.display_name);
-        const allInsts = [...new Set([...affs, ...last])];
+    // ── Step 1: Resolve institution → OpenAlex IDs (enables server-side AND) ──
+    let extraFilters = [];   // filter clauses to AND together
+    let resolvedInst = [];   // display names for UI feedback
 
-        // Build a searchable string from x_concepts and topics fields
-        const conceptNames = (a.x_concepts || []).map(c => c.display_name || '');
-        const topicNames = (a.topics || []).flatMap(t => [
-          t.display_name,
-          t.subfield && t.subfield.display_name,
-          t.field && t.field.display_name,
-        ].filter(Boolean));
-        const specialtyText = [...conceptNames, ...topicNames].join(' | ').toLowerCase();
+    if (koreaOnly) {
+      extraFilters.push('affiliations.institution.country_code:KR');
+    }
 
-        return { ...a, _institutions: allInsts, _specialtyText: specialtyText };
-      })
-      .filter(a => {
-        const instOk = !instLower || instTokens.some(t => a._institutions.map(s => s.toLowerCase()).join(' | ').includes(t));
-        const specOk = !specLower || specTokens.some(t => a._specialtyText.includes(t));
-        return instOk && specOk;
-      });
+    if (instKeyword.length >= 3) {
+      try {
+        const idata = await _fetch(
+          `/institutions?search=${encodeURIComponent(instKeyword)}&per-page=5&select=id,display_name`
+        );
+        const hits = (idata.results || []).slice(0, 4);
+        if (hits.length) {
+          // pipe = OR between institution IDs; combined with name search = AND
+          extraFilters.push(`affiliations.institution.id:${hits.map(h => h.id).join('|')}`);
+          resolvedInst = hits.map(h => h.display_name);
+        }
+      } catch (_) { /* institution lookup failed; local fallback below */ }
+    }
+
+    const instFilter = extraFilters.length ? `&filter=${extraFilters.join(',')}` : '';
+
+    // ── Step 2: Author search (name × institution AND on server) ──
+    const perPage = instFilter ? 50 : 25;
+    const data = await _fetch(
+      `/authors?search=${encodeURIComponent(name)}${instFilter}&per-page=${perPage}`
+    );
+
+    // ── Step 3: Normalize ──
+    const results = (data.results || []).map(a => {
+      const affs = (a.affiliations || [])
+        .map(x => x.institution && x.institution.display_name).filter(Boolean);
+      const last = (a.last_known_institutions || []).map(x => x.display_name);
+      const allInsts = [...new Set([...affs, ...last])];
+
+      const conceptNames = (a.x_concepts || []).map(c => c.display_name || '');
+      const topicNames   = (a.topics    || []).flatMap(t => [
+        t.display_name,
+        t.subfield && t.subfield.display_name,
+        t.field    && t.field.display_name,
+      ].filter(Boolean));
+      const specialtyText = [...conceptNames, ...topicNames].join(' | ').toLowerCase();
+
+      return { ...a, _institutions: allInsts, _specialtyText: specialtyText };
+    });
+
+    // ── Step 4: Local filters ──
+    // Institution: only needed as fallback when server-side filter wasn't applied.
+    // Uses ALL-token (AND) logic — stricter than the old OR approach.
+    const instLower  = instKeyword.toLowerCase();
+    const instTokens = instLower.split(/\s+/).filter(t => t.length >= 3);
+
+    const filtered = results.filter(a => {
+      if (instTokens.length && !resolvedInst.length) {
+        // Fallback: every token must appear in at least one institution string
+        const joined = a._institutions.map(s => s.toLowerCase()).join(' | ');
+        if (!instTokens.every(t => joined.includes(t))) return false;
+      }
+      if (specTokens.length) {
+        if (!specTokens.some(t => a._specialtyText.includes(t))) return false;
+      }
+      return true;
+    });
+
+    // Attach resolved institution names so search.js can show feedback
+    filtered._resolvedInst = resolvedInst;
+    return filtered;
   }
 
   // Cursor-paginated fetch of all works for an author.

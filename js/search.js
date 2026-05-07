@@ -78,7 +78,8 @@ RKG.search = (function() {
     }
 
     try {
-      _candidates = await RKG.api.searchAuthors(name, inst, specialty);
+      const koreaOnly = !!($('#korea-only-chk') && $('#korea-only-chk').checked);
+      _candidates = await RKG.api.searchAuthors(name, inst, specialty, koreaOnly);
       if (!_candidates.length) {
         if (specialty) {
           showStatus('전문 분야 조건에 맞는 저자를 찾지 못했습니다. 전문 분야 키워드를 지우거나 바꿔 보세요.', 'error');
@@ -102,6 +103,17 @@ RKG.search = (function() {
     const list = $('#candidates-list');
     $('#candidate-count').textContent =
       `${_candidates.length} candidate${_candidates.length === 1 ? '' : 's'}`;
+
+    const resolvedInst = _candidates._resolvedInst || [];
+    const noteEl = $('#inst-filter-note');
+    if (noteEl) {
+      if (resolvedInst.length) {
+        noteEl.innerHTML = `기관 필터 적용됨: <span style="color:#2D5A1F;font-weight:500;">${resolvedInst.slice(0, 2).join(', ')}${resolvedInst.length > 2 ? ` 외 ${resolvedInst.length - 2}개` : ''}</span>`;
+        noteEl.classList.remove('hidden');
+      } else {
+        noteEl.classList.add('hidden');
+      }
+    }
 
     list.innerHTML = _candidates.map((a, i) => {
       const insts = a._institutions.slice(0, 3).join(' · ') || '소속 미상';

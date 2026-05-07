@@ -9,6 +9,11 @@ RKG.dashboard = (function() {
   const $$ = sel => [...document.querySelectorAll(sel)];
 
   let _activated = false;
+  let _journalSort = { col: 'papers', dir: 'desc' };
+  let _paperSort   = { col: 'year',   dir: 'desc' };
+  const _ROLE_CYCLE = ['all', 'first', 'senior', 'middle'];
+  const _ROLE_LABEL = { all: '', first: ' · 제1저자', senior: ' · 교신저자', middle: ' · 중간저자' };
+  let _paperRoleFilter = 'all';
 
   function fmtNum(n) {
     if (n == null) return '—';
@@ -105,6 +110,49 @@ RKG.dashboard = (function() {
       $('#dashboard').classList.add('hidden');
       $('#author-name').focus();
     });
+
+    // Journal table column sort
+    $$('#journals-thead th[data-sort]').forEach(th => {
+      th.style.cursor = 'pointer';
+      th.title = '클릭하여 정렬';
+      th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        if (_journalSort.col === col) {
+          _journalSort.dir = _journalSort.dir === 'desc' ? 'asc' : 'desc';
+        } else {
+          _journalSort.col = col;
+          _journalSort.dir = 'desc';
+        }
+        _renderJournals(RKG.state.getFilteredWorks());
+      });
+    });
+
+    // Paper table: year / cites column sort
+    $$('#papers-thead th[data-sort]').forEach(th => {
+      th.style.cursor = 'pointer';
+      th.title = '클릭하여 정렬';
+      th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        if (_paperSort.col === col) {
+          _paperSort.dir = _paperSort.dir === 'desc' ? 'asc' : 'desc';
+        } else {
+          _paperSort.col = col;
+          _paperSort.dir = 'desc';
+        }
+        _renderPapers(RKG.state.getFilteredWorks());
+      });
+    });
+
+    // Paper table: role header cycles through filter states
+    const roleTh = $('#papers-thead th[data-role-cycle]');
+    if (roleTh) {
+      roleTh.style.cursor = 'pointer';
+      roleTh.addEventListener('click', () => {
+        const idx = (_ROLE_CYCLE.indexOf(_paperRoleFilter) + 1) % _ROLE_CYCLE.length;
+        _paperRoleFilter = _ROLE_CYCLE[idx];
+        _renderPapers(RKG.state.getFilteredWorks());
+      });
+    }
   }
 
   function _onYearChange() {
@@ -199,8 +247,24 @@ RKG.dashboard = (function() {
       .map(([sid, c]) => {
         const stat = s.sourceStats.get(sid) || {};
         return { sid, name: stat.display_name || 'Unknown', if_2yr: stat.if_2yr, h_index: stat.h_index, ...c };
-      })
-      .sort((a, b) => b.papers - a.papers);
+      });
+
+    const jc = _journalSort;
+    rows.sort((a, b) => {
+      let va, vb;
+      if (jc.col === 'papers')  { va = a.papers;       vb = b.papers; }
+      else if (jc.col === 'cites')  { va = a.cites;        vb = b.cites; }
+      else if (jc.col === 'if')     { va = a.if_2yr || 0;  vb = b.if_2yr || 0; }
+      else if (jc.col === 'hindex') { va = a.h_index || 0; vb = b.h_index || 0; }
+      else { va = a.papers; vb = b.papers; }
+      return jc.dir === 'desc' ? vb - va : va - vb;
+    });
+
+    // Update sort indicator arrows
+    $$('#journals-thead th[data-sort]').forEach(th => {
+      const sp = th.querySelector('.sort-arrow');
+      if (sp) sp.textContent = th.dataset.sort === jc.col ? (jc.dir === 'desc' ? ' ↓' : ' ↑') : '';
+    });
 
     $('#journals-tbody').innerHTML = rows.map(r => `
       <tr>
@@ -216,7 +280,32 @@ RKG.dashboard = (function() {
   }
 
   function _renderPapers(works) {
-    const sorted = [...works].sort((a, b) => (b.publication_year || 0) - (a.publication_year || 0));
+    // Role cycle filter (local to papers table)
+    const roleLabel = $('#papers-role-label');
+    if (roleLabel) roleLabel.textContent = _ROLE_LABEL[_paperRoleFilter] || '';
+
+    const displayed = _paperRoleFilter === 'all'
+      ? works
+      : works.filter(w => RKG.state.getAuthorshipRole(w) === _paperRoleFilter);
+
+    const pc = _paperSort;
+    const sorted = [...displayed].sort((a, b) => {
+      if (pc.col === 'year') {
+        const d = (b.publication_year || 0) - (a.publication_year || 0);
+        return pc.dir === 'desc' ? d : -d;
+      } else if (pc.col === 'cites') {
+        const d = (b.cited_by_count || 0) - (a.cited_by_count || 0);
+        return pc.dir === 'desc' ? d : -d;
+      }
+      return 0;
+    });
+
+    // Update sort indicator arrows
+    $$('#papers-thead th[data-sort]').forEach(th => {
+      const sp = th.querySelector('.sort-arrow');
+      if (sp) sp.textContent = th.dataset.sort === pc.col ? (pc.dir === 'desc' ? ' ↓' : ' ↑') : '';
+    });
+
     const limit = 200;
     $('#papers-tbody').innerHTML = sorted.slice(0, limit).map(w => {
       const role = RKG.state.getAuthorshipRole(w);

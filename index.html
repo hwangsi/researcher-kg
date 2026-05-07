@@ -50,13 +50,17 @@
         <span id="search-btn-text">검색</span>
       </button>
     </div>
-    <div class="mt-3 flex items-end gap-4">
+    <div class="mt-3 flex items-end gap-6 flex-wrap">
       <div class="max-w-[260px]">
         <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">ORCID (선택)</label>
         <input id="author-orcid-input" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm mono" placeholder="0000-0002-..." autocomplete="off">
       </div>
+      <label class="flex items-center gap-2 cursor-pointer select-none mb-0.5">
+        <input id="korea-only-chk" type="checkbox" class="w-4 h-4 cursor-pointer accent-[#8B2331]">
+        <span class="text-sm">한국 기관만 검색</span>
+      </label>
     </div>
-    <p class="text-xs text-muted mt-3">기관명·전문 분야는 키워드 일부만 입력해도 됩니다. 같은 이름이 여러 명일 경우 전문 분야로 구분하세요. ORCID를 입력하면 이름·기관 무시하고 그것만으로 정확히 조회합니다.</p>
+    <p class="text-xs text-muted mt-3">소속 기관: 실제 기관명 키워드 (예: Bundang, 분당서울대). 전문 분야: 진료과명 (예: Radiology). 동명이인이 많으면 <b>한국 기관만 검색</b> 체크. ORCID가 있으면 가장 정확합니다.</p>
   </section>
 
   <div id="status" class="hidden mb-6"></div>
@@ -66,6 +70,7 @@
       <h2 class="display text-xl font-medium">후보 저자 선택</h2>
       <span id="candidate-count" class="text-xs text-muted mono"></span>
     </div>
+    <p id="inst-filter-note" class="hidden text-xs text-muted mb-3"></p>
     <div class="flex items-center gap-3 mb-3 text-xs flex-wrap">
       <span class="text-muted">여러 ID가 같은 사람이면 체크 후 병합:</span>
       <button id="merge-selected-btn" disabled class="btn-primary px-3 py-1.5 rounded text-xs">
@@ -220,12 +225,12 @@
       </div>
       <div class="card rounded overflow-hidden">
         <table class="kg-table">
-          <thead><tr>
+          <thead id="journals-thead"><tr>
             <th>저널</th>
-            <th class="text-right">논문 수</th>
-            <th class="text-right">총 인용</th>
-            <th class="text-right">IF (2yr)</th>
-            <th class="text-right">h-index</th>
+            <th class="text-right" data-sort="papers">논문 수<span class="sort-arrow" style="font-size:10px;"> ↓</span></th>
+            <th class="text-right" data-sort="cites">총 인용<span class="sort-arrow" style="font-size:10px;"></span></th>
+            <th class="text-right" data-sort="if">IF (2yr)<span class="sort-arrow" style="font-size:10px;"></span></th>
+            <th class="text-right" data-sort="hindex">h-index<span class="sort-arrow" style="font-size:10px;"></span></th>
           </tr></thead>
           <tbody id="journals-tbody"></tbody>
         </table>
@@ -236,11 +241,11 @@
       <h3 class="display text-lg mb-4">논문 목록</h3>
       <div class="card rounded overflow-hidden">
         <table class="kg-table">
-          <thead><tr>
-            <th style="width: 60px;">연도</th>
-            <th style="width: 80px;">역할</th>
+          <thead id="papers-thead"><tr>
+            <th style="width: 60px;" data-sort="year">연도<span class="sort-arrow" style="font-size:10px;"> ↓</span></th>
+            <th style="width: 80px;" data-role-cycle title="클릭하여 역할별 필터">역할<span id="papers-role-label" style="font-size:10px;color:var(--ink-muted);"></span></th>
             <th>제목 / 저널</th>
-            <th class="text-right" style="width: 80px;">인용</th>
+            <th class="text-right" style="width: 80px;" data-sort="cites">인용<span class="sort-arrow" style="font-size:10px;"></span></th>
           </tr></thead>
           <tbody id="papers-tbody"></tbody>
         </table>

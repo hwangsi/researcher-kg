@@ -30,6 +30,8 @@ RKG.bubbleTimeline = (function() {
   let _chart = null;
   let _journalsList = [];
   let _topicMap = new Map();
+  let _tooltipEl = null;
+  let _tooltipHideTimer = null;
 
   function init() {
     RKG.state.subscribe(_render);
@@ -104,11 +106,11 @@ RKG.bubbleTimeline = (function() {
 
   function _styleForRole(color, role) {
     if (role === 'first') {
-      return { bg: _hexToRgba(color, 0.18), border: color, borderWidth: 2.5 };
+      return { bg: _hexToRgba(color, 0.18), border: color, borderWidth: 2.5, pointStyle: 'circle' };
     } else if (role === 'senior') {
-      return { bg: _hexToRgba(color, 0.7), border: _darken(color, 0.7), borderWidth: 1.5 };
+      return { bg: _hexToRgba(color, 0.75), border: _darken(color, 0.7), borderWidth: 1.5, pointStyle: 'star' };
     } else {
-      return { bg: _hexToRgba(color, 0.35), border: _hexToRgba(color, 0.5), borderWidth: 0.5 };
+      return { bg: _hexToRgba(color, 0.35), border: _hexToRgba(color, 0.5), borderWidth: 0.5, pointStyle: 'triangle' };
     }
   }
 
@@ -125,20 +127,95 @@ RKG.bubbleTimeline = (function() {
 
     const roleHTML = `
       <span class="flex items-center gap-1.5 ml-3 pl-3 border-l rule">
-        <span style="width:12px;height:12px;border-radius:50%;border:2.5px solid #555;background:rgba(127,119,221,0.2);display:inline-block;box-sizing:border-box;"></span>
+        <span style="width:12px;height:12px;border-radius:50%;border:2.5px solid #7F77DD;background:rgba(127,119,221,0.2);display:inline-block;box-sizing:border-box;flex-shrink:0;"></span>
         <span class="text-muted">제1저자</span>
       </span>
       <span class="flex items-center gap-1.5">
-        <span style="width:12px;height:12px;border-radius:50%;background:#7F77DD;display:inline-block;"></span>
-        <span class="text-muted">교신/마지막</span>
+        <svg width="13" height="13" viewBox="0 0 13 13" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
+          <polygon points="6.5,0.5 7.9,4.4 12.2,4.8 9.1,7.5 10.1,11.8 6.5,9.5 2.9,11.8 3.9,7.5 0.8,4.8 5.1,4.4" fill="#7F77DD"/>
+        </svg>
+        <span class="text-muted">교신저자</span>
       </span>
       <span class="flex items-center gap-1.5">
-        <span style="width:8px;height:8px;border-radius:50%;background:rgba(127,119,221,0.5);display:inline-block;"></span>
-        <span class="text-muted">중간</span>
+        <svg width="11" height="11" viewBox="0 0 11 11" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
+          <polygon points="5.5,0.5 10.5,10.5 0.5,10.5" fill="rgba(127,119,221,0.45)" stroke="rgba(127,119,221,0.65)" stroke-width="0.8"/>
+        </svg>
+        <span class="text-muted">중간저자</span>
       </span>
     `;
 
     el.innerHTML = topicHTML + roleHTML;
+  }
+
+  // ----- sticky external tooltip -----
+
+  function _ensureTooltip(container) {
+    if (_tooltipEl && _tooltipEl.isConnected) return _tooltipEl;
+    _tooltipEl = document.createElement('div');
+    Object.assign(_tooltipEl.style, {
+      position: 'absolute', pointerEvents: 'auto', zIndex: '100',
+      background: 'rgba(255,254,250,0.97)', border: '1px solid #E5DFCF',
+      padding: '10px 13px', borderRadius: '5px', fontSize: '11.5px',
+      lineHeight: '1.6', maxWidth: '320px', display: 'none', opacity: '1',
+      fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif',
+      fontFeatureSettings: 'normal', fontVariant: 'normal',
+      color: '#1A1A1A',
+      boxShadow: '0 3px 14px rgba(0,0,0,0.1)',
+      transition: 'opacity 0.12s',
+    });
+    _tooltipEl.addEventListener('mouseenter', () => {
+      if (_tooltipHideTimer) { clearTimeout(_tooltipHideTimer); _tooltipHideTimer = null; }
+    });
+    _tooltipEl.addEventListener('mouseleave', () => {
+      _tooltipEl.style.display = 'none';
+    });
+    container.appendChild(_tooltipEl);
+    return _tooltipEl;
+  }
+
+  function _externalTooltip(context) {
+    const { chart, tooltip } = context;
+    const el = _ensureTooltip(chart.canvas.parentNode);
+
+    if (tooltip.opacity === 0) {
+      if (!_tooltipHideTimer) {
+        _tooltipHideTimer = setTimeout(() => {
+          if (_tooltipEl) _tooltipEl.style.display = 'none';
+          _tooltipHideTimer = null;
+        }, 250);
+      }
+      return;
+    }
+    if (_tooltipHideTimer) { clearTimeout(_tooltipHideTimer); _tooltipHideTimer = null; }
+    if (!tooltip.dataPoints || !tooltip.dataPoints.length) return;
+
+    const p = tooltip.dataPoints[0].raw;
+    if (!p || !p._work) return;
+    const w = p._work;
+    const journal = (_journalsList[p.y] || {}).name || '';
+    const roleLabel = { first: '제1저자', senior: '교신/마지막 저자', middle: '중간 저자' }[p._role] || '';
+    const title = (w.title || 'Untitled').slice(0, 100);
+    const doi = w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}` : null;
+
+    const AF = 'font-family:Arial,"Helvetica Neue",Helvetica,sans-serif;font-feature-settings:normal;font-variant:normal;';
+    el.innerHTML = `
+      <div style="${AF}font-weight:600;line-height:1.4;margin-bottom:5px;">
+        ${doi
+          ? `<a href="${doi}" target="_blank" rel="noopener" style="${AF}color:#0078D4;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${title}</a>`
+          : `<span style="${AF}">${title}</span>`}
+      </div>
+      <div style="${AF}color:#5A5A5A;margin-bottom:3px;">${journal} · ${p.x}</div>
+      <div style="${AF}color:#5A5A5A;">${w.cited_by_count || 0} 인용 · ${roleLabel}${p._topic ? ' · ' + p._topic : ''}</div>
+      ${doi ? `<div style="${AF}color:#ADADAD;font-size:10px;margin-top:4px;">↗ 논문 링크 클릭 가능</div>` : ''}
+    `;
+
+    el.style.display = 'block';
+    const containerW = chart.canvas.parentNode.offsetWidth;
+    let left = tooltip.caretX + 16;
+    if (left + 330 > containerW) left = tooltip.caretX - 338;
+    if (left < 0) left = 4;
+    el.style.left = left + 'px';
+    el.style.top = Math.max(0, tooltip.caretY - 14) + 'px';
   }
 
   // ----- main render -----
@@ -172,6 +249,7 @@ RKG.bubbleTimeline = (function() {
         y: journalIdx.get(sid),
         r,
         _bg: style.bg, _border: style.border, _borderWidth: style.borderWidth,
+        _pointStyle: style.pointStyle,
         _work: w, _role: role, _topic: topic, _color: color,
       });
     }
@@ -183,6 +261,8 @@ RKG.bubbleTimeline = (function() {
   function _renderChart(points) {
     const ctx = document.getElementById('bubble-canvas');
     if (_chart) { _chart.destroy(); _chart = null; }
+    if (_tooltipEl) { _tooltipEl.remove(); _tooltipEl = null; }
+    if (_tooltipHideTimer) { clearTimeout(_tooltipHideTimer); _tooltipHideTimer = null; }
 
     const s = RKG.state.get();
     const xMin = s.filteredYearMin - 0.6;
@@ -196,7 +276,7 @@ RKG.bubbleTimeline = (function() {
           backgroundColor: points.map(p => p._bg),
           borderColor: points.map(p => p._border),
           borderWidth: points.map(p => p._borderWidth),
-          pointStyle: 'circle',
+          pointStyle: points.map(p => p._pointStyle),
         }],
       },
       options: {
@@ -206,29 +286,8 @@ RKG.bubbleTimeline = (function() {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: 'rgba(255,254,250,0.97)',
-            titleColor: '#1A1A1A',
-            bodyColor: '#1A1A1A',
-            borderColor: '#E5DFCF',
-            borderWidth: 1,
-            padding: 10,
-            titleFont: TICK_FONT,
-            bodyFont: TICK_FONT,
-            callbacks: {
-              label: ctx => {
-                const p = ctx.raw;
-                const w = p._work;
-                const journal = (_journalsList[p.y] || {}).name || '';
-                const roleLabel = { first: '제1저자', senior: '교신/마지막 저자', middle: '중간 저자' }[p._role] || '';
-                const title = (w.title || 'Untitled').slice(0, 90);
-                return [
-                  title,
-                  `${journal} · ${p.x}`,
-                  `${w.cited_by_count || 0} cites · ${roleLabel}`,
-                  p._topic ? `Topic: ${p._topic}` : '',
-                ].filter(Boolean);
-              },
-            },
+            enabled: false,
+            external: _externalTooltip,
           },
         },
         scales: {

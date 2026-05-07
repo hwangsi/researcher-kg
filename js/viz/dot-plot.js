@@ -106,25 +106,42 @@ RKG.dotPlot = (function() {
       }
     }
 
-    _draw(points, topAuthors, s);
+    _draw(points, topAuthors, s, topicColor);
   }
 
-  function _draw(points, authors, s) {
+  function _draw(points, authors, s, topicColor) {
     const container = document.getElementById('dotplot-container');
     if (!container) return;
-
-    // Height proportional to number of authors shown
-    const rowH = 22;
-    const newH = Math.max(360, Math.min(680, authors.length * rowH + 72));
-    container.style.height = newH + 'px';
-    container.innerHTML = '<canvas id="dotplot-canvas" role="img" aria-label="Co-author dot plot"></canvas>';
 
     if (_chart) { _chart.destroy(); _chart = null; }
 
     if (!authors.length) {
+      container.style.height = '120px';
       container.innerHTML = '<div class="flex items-center justify-center h-full text-sm" style="color:var(--ink-muted)">표시할 공저자 없음</div>';
       return;
     }
+
+    // Legend — spread across full container width
+    const legendEntries = topicColor ? [...topicColor.entries()] : [];
+    const containerW = container.offsetWidth || 800;
+    const minCellW = 148;
+    const colCount = Math.max(1, Math.min(legendEntries.length, Math.floor(containerW / minCellW)));
+    const legendRows = legendEntries.length ? Math.ceil(legendEntries.length / colCount) : 0;
+    const legendH = legendEntries.length ? (legendRows * 26 + 8) : 0;
+    const legendHTML = legendEntries.length ? `
+      <div style="height:${legendH}px;display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px 8px;align-items:center;padding:4px 0;font-size:11px;color:#3A3A3A;font-family:Arial,sans-serif;">
+        ${legendEntries.map(([t, c]) => `
+          <span style="display:flex;align-items:center;gap:5px;min-width:0;">
+            <span style="width:10px;height:10px;border-radius:2px;background:${c};flex-shrink:0;display:inline-block;"></span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="${t}">${t}</span>
+          </span>`).join('')}
+      </div>` : '';
+
+    // Height proportional to number of authors shown
+    const rowH = 22;
+    const chartH = Math.max(360, Math.min(680, authors.length * rowH + 72));
+    container.style.height = (chartH + legendH) + 'px';
+    container.innerHTML = legendHTML + `<div style="position:relative;height:${chartH}px;"><canvas id="dotplot-canvas" role="img" aria-label="Co-author dot plot"></canvas></div>`;
 
     const ctx = document.getElementById('dotplot-canvas');
 
