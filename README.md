@@ -20,7 +20,7 @@ python3 -m http.server 8000
 - 연도 범위 슬라이더로 모든 시각화 동기화
 - **Bubble Timeline** — 연도 × 저널 × 인용 × 주제 + 저자 역할(1저자/교신/중간) 인코딩
 - **Co-author Co-occurrence Network** — 본인 빼고 공저자끼리의 협업 구조
-- 저널 표 (IF는 OpenAlex 2yr citation rate 기반)
+- 저널 표 (IF는 JCR 2025)
 - 논문 목록 (DOI 링크)
 
 ## What's stub / TODO
