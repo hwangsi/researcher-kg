@@ -59,33 +59,32 @@ RKG.search = (function() {
     const name = $('#author-name').value.trim();
     const inst = $('#author-institution').value.trim();
     const specialty = $('#author-specialty').value.trim();
+    const koreaOnly = !!($('#korea-only-chk') && $('#korea-only-chk').checked);
 
-    if (!orcid && !name) { showStatus('저자 이름 또는 ORCID를 입력하세요.', 'error'); return; }
+    if (!orcid && !name && !inst && !specialty) {
+      showStatus('저자 이름, ORCID, 소속, 전문 분야 중 하나 이상을 입력하세요.', 'error');
+      return;
+    }
 
     hideStatus();
     setSearching(true);
     $('#candidates-section').classList.add('hidden');
     $('#dashboard').classList.add('hidden');
 
-    if (orcid) {
-      try {
-        const results = await RKG.api.searchByOrcid(orcid);
-        if (results.length === 1) { selectAuthor(results[0]); return; }
-        if (results.length > 1) { _candidates = results; renderCandidates(); return; }
-        showStatus('해당 ORCID로 등록된 저자가 없습니다.', 'error'); return;
-      } catch (e) { showStatus(e.message, 'error'); return; }
-      finally { setSearching(false); }
-    }
-
     try {
-      const koreaOnly = !!($('#korea-only-chk') && $('#korea-only-chk').checked);
-      _candidates = await RKG.api.searchAuthors(name, inst, specialty, koreaOnly);
+      _candidates = await RKG.api.searchAuthors({ name, institution: inst, specialty, orcid, koreaOnly });
       if (!_candidates.length) {
-        if (specialty) {
-          showStatus('전문 분야 조건에 맞는 저자를 찾지 못했습니다. 전문 분야 키워드를 지우거나 바꿔 보세요.', 'error');
+        if (orcid) {
+          showStatus('ORCID는 조회됐더라도 함께 입력한 이름·소속·전문 분야 조건을 모두 만족하는 저자가 없습니다.', 'error');
+        } else if (inst || specialty) {
+          showStatus('입력한 이름·소속·전문 분야 조건을 모두 만족하는 저자를 찾지 못했습니다. 조건을 하나씩 완화해보세요.', 'error');
         } else {
           showStatus('일치하는 저자를 찾지 못했습니다. 이름 철자나 기관 키워드를 확인해보세요.', 'error');
         }
+        return;
+      }
+      if (orcid && _candidates.length === 1) {
+        selectAuthor(_candidates[0]);
         return;
       }
       renderCandidates();
@@ -116,8 +115,10 @@ RKG.search = (function() {
     }
 
     list.innerHTML = _candidates.map((a, i) => {
-      const insts = a._institutions.slice(0, 3).join(' · ') || '소속 미상';
+      const displayInsts = a._displayInstitutions || a._matchedInstitutions || a._institutions || [];
+      const insts = displayInsts.slice(0, 3).join(' · ') || '소속 미상';
       const orcid = a.orcid ? a.orcid.replace('https://orcid.org/', '') : '';
+      const dupCount = (a._duplicateGroupIds || []).length;
 
       const topicLabels = (a.topics || [])
         .slice(0, 3)
@@ -127,7 +128,8 @@ RKG.search = (function() {
         .filter(c => c.level === 1)
         .slice(0, 3)
         .map(c => c.display_name);
-      const areaLabels = topicLabels.length ? topicLabels : conceptLabels;
+      const areaLabels = [...new Set(topicLabels.length ? topicLabels : conceptLabels)];
+      const specEvidence = a._specialtyEvidence;
 
       return `
         <div class="candidate-card card rounded p-4 relative" data-idx="${i}">
@@ -138,6 +140,8 @@ RKG.search = (function() {
           </div>
           <p class="text-xs text-muted mb-1">${insts}</p>
           ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#8B2331;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
+          ${specEvidence ? `<p class="text-xs mb-2" style="color:#2D5A1F;">전공 근거: 주요 논문 ${specEvidence.matchedCount}/${specEvidence.sampleSize}건 일치</p>` : ''}
+          ${dupCount > 1 ? `<p class="text-xs mb-2" style="color:#6A4A00;">중복 가능 ID ${dupCount}개: 필요하면 체크해서 병합</p>` : ''}
           <div class="flex gap-3 text-xs">
             <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
             <span><span class="text-muted">Cited:</span> <span class="mono">${fmtNum(a.cited_by_count)}</span></span>
@@ -180,8 +184,15 @@ RKG.search = (function() {
       }
     }
 
+    const filteredWorks = RKG.api.filterWorksBySearchCriteria
+      ? RKG.api.filterWorksBySearchCriteria(allWorks, author)
+      : allWorks;
+    if (allWorks.length && !filteredWorks.length) {
+      throw new Error('선택한 저자의 논문은 불러왔지만 입력한 소속·전공 조건을 만족하는 논문이 없습니다.');
+    }
+
     const sourceIds = new Set();
-    for (const w of allWorks) {
+    for (const w of filteredWorks) {
       const src = w.primary_location && w.primary_location.source && w.primary_location.source.id;
       if (src) sourceIds.add(src);
     }
@@ -189,7 +200,7 @@ RKG.search = (function() {
     showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${sourceIds.size}개 저널의 IF 정보를 가져오는 중...`);
     const stats = await RKG.api.fetchSourceStats(sourceIds);
 
-    RKG.state.setWorks(allWorks);
+    RKG.state.setWorks(filteredWorks);
     RKG.state.setSourceStats(stats);
     hideStatus();
     RKG.dashboard.activate();
@@ -212,10 +223,13 @@ RKG.search = (function() {
       id: 'merged:' + authors.map(a => a.id).join(','),
       display_name: authors[0].display_name + ` (${authors.length} IDs 병합)`,
       _institutions: [...new Set(authors.flatMap(a => a._institutions))],
+      _displayInstitutions: [...new Set(authors.flatMap(a => a._displayInstitutions || a._institutions))],
+      _matchedInstitutions: [...new Set(authors.flatMap(a => a._matchedInstitutions || []))],
       _mergedIds: authors.map(a => a.id),
       works_count: authors.reduce((s, a) => s + (a.works_count || 0), 0),
       cited_by_count: authors.reduce((s, a) => s + (a.cited_by_count || 0), 0),
       orcid: (authors.find(a => a.orcid) || {}).orcid || null,
+      _searchCriteria: authors[0]._searchCriteria || null,
     };
     showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${merged.display_name} 의 논문을 불러오는 중...`);
     RKG.state.setAuthor(merged);

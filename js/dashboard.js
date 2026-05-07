@@ -33,7 +33,7 @@ RKG.dashboard = (function() {
 
     // Author header
     $('#author-display-name').textContent = a.display_name;
-    $('#author-affiliation').textContent = a._institutions.slice(0, 3).join(' · ');
+    $('#author-affiliation').textContent = (a._displayInstitutions || a._matchedInstitutions || a._institutions || []).slice(0, 3).join(' · ');
     $('#author-orcid').textContent = a.orcid ? a.orcid.replace('https://', '') : '';
 
     // Year sliders
