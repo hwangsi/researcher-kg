@@ -1,6 +1,12 @@
-"""Build a single-file distributable HTML from the modular source."""
+"""Build a single-file distributable HTML from the modular source.
+
+Reads index.html as the template, then:
+- Replaces <link rel="stylesheet" href="css/styles.css"> with inlined <style>
+- Replaces each local <script src="..."> with inlined <script>
+"""
 
 import os
+import re
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -8,294 +14,27 @@ def read(path):
     with open(os.path.join(BASE, path), encoding='utf-8') as f:
         return f.read()
 
-css = read('css/styles.css')
+html = read('index.html')
 
-js_files = [
-    'data/jcr-if.js',
-    'js/state.js',
-    'js/api.js',
-    'js/search.js',
-    'js/viz/bubble-timeline.js',
-    'js/viz/coauthor-network.js',
-    'js/viz/streamgraph.js',
-    'js/viz/dot-plot.js',
-    'js/viz/bubble-3d.js',
-    'js/dashboard.js',
-]
+# Inline local CSS links
+def replace_css(m):
+    href = m.group(1)
+    if href.startswith('http'):
+        return m.group(0)
+    css = read(href)
+    return f'<style>\n{css}\n</style>'
 
-js_blocks = ''.join(
-    f'\n<script>\n{read(p)}\n</script>\n'
-    for p in js_files
-)
+html = re.sub(r'<link rel="stylesheet" href="([^"]+)">', replace_css, html)
 
-html = f"""<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Researcher Knowledge Graph</title>
+# Inline local JS scripts
+def replace_js(m):
+    src = m.group(1)
+    if src.startswith('http'):
+        return m.group(0)
+    js = read(src)
+    return f'<script>\n{js}\n</script>'
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/[email protected]/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://d3js.org/d3.v7.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>Chart.defaults.font.family = 'Arial, sans-serif';</script>
-<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
-<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-
-<style>
-{css}
-</style>
-</head>
-<body>
-
-<div class="max-w-[1400px] mx-auto px-6 lg:px-10 py-8">
-
-  <header class="mb-10">
-    <div class="flex items-baseline gap-4 mb-2">
-      <h1 class="display text-4xl font-medium">Researcher</h1>
-      <span class="display text-4xl italic accent">Knowledge Graph</span>
-    </div>
-    <div class="deco-line w-32 mb-3"></div>
-    <p class="text-sm text-muted">Publications · Co-authors · Topics · Journals — via OpenAlex</p>
-  </header>
-
-  <section id="search-section" class="card rounded-lg p-6 mb-6">
-    <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-4 items-end">
-      <div>
-        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">저자 이름</label>
-        <input id="author-name" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="e.g. Yeo Ju Kim" autocomplete="off">
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">소속 기관 키워드</label>
-        <input id="author-institution" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="e.g. Bundang" autocomplete="off">
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">전문 분야 키워드</label>
-        <input id="author-specialty" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="e.g. Radiology, Surgery" autocomplete="off">
-      </div>
-      <button id="search-btn" class="btn-primary px-6 py-2.5 rounded text-sm font-medium whitespace-nowrap">
-        <span id="search-btn-text">검색</span>
-      </button>
-    </div>
-    <div class="mt-3 flex items-end gap-6 flex-wrap">
-      <div class="max-w-[260px]">
-        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">ORCID (선택)</label>
-        <input id="author-orcid-input" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm mono" placeholder="0000-0002-..." autocomplete="off">
-      </div>
-      <label class="flex items-center gap-2 cursor-pointer select-none mb-0.5">
-        <input id="korea-only-chk" type="checkbox" class="w-4 h-4 cursor-pointer accent-[#8B2331]">
-        <span class="text-sm">한국 기관만 검색</span>
-      </label>
-    </div>
-    <p class="text-xs text-muted mt-3">소속 기관: 실제 기관명 키워드 (예: Bundang, 분당서울대). 전문 분야: 진료과명 (예: Radiology). 동명이인이 많으면 <b>한국 기관만 검색</b> 체크. ORCID가 있으면 가장 정확합니다.</p>
-  </section>
-
-  <div id="status" class="hidden mb-6"></div>
-
-  <section id="candidates-section" class="hidden mb-8">
-    <div class="flex items-baseline justify-between mb-4">
-      <h2 class="display text-xl font-medium">후보 저자 선택</h2>
-      <span id="candidate-count" class="text-xs text-muted mono"></span>
-    </div>
-    <p id="inst-filter-note" class="hidden text-xs text-muted mb-3"></p>
-    <div class="flex items-center gap-3 mb-3 text-xs flex-wrap">
-      <span class="text-muted">여러 ID가 같은 사람이면 체크 후 병합:</span>
-      <button id="merge-selected-btn" disabled class="btn-primary px-3 py-1.5 rounded text-xs">
-        선택한 <span id="merge-count">0</span>명 병합
-      </button>
-      <button id="clear-selection-btn" class="text-muted hover:underline">선택 해제</button>
-    </div>
-    <div id="candidates-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-  </section>
-
-  <section id="dashboard" class="hidden">
-
-    <div class="flex items-end justify-between flex-wrap gap-4 mb-6 pb-6 border-b rule">
-      <div>
-        <p class="text-xs uppercase tracking-wider text-muted mb-1">선택된 저자</p>
-        <h2 id="author-display-name" class="display text-3xl font-medium"></h2>
-        <p id="author-affiliation" class="text-sm text-muted mt-1"></p>
-        <p id="author-orcid" class="text-xs text-muted mono mt-1"></p>
-      </div>
-      <button id="reset-btn" class="text-sm underline-offset-2 hover:underline text-muted">← 다시 검색</button>
-    </div>
-
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-      <div class="card rounded p-4">
-        <p class="text-xs text-muted uppercase tracking-wider mb-1">Publications</p>
-        <p class="stat-num text-3xl" id="stat-papers">—</p>
-      </div>
-      <div class="card rounded p-4">
-        <p class="text-xs text-muted uppercase tracking-wider mb-1">Citations</p>
-        <p class="stat-num text-3xl" id="stat-citations">—</p>
-      </div>
-      <div class="card rounded p-4">
-        <p class="text-xs text-muted uppercase tracking-wider mb-1">h-index</p>
-        <p class="stat-num text-3xl" id="stat-hindex">—</p>
-      </div>
-      <div class="card rounded p-4">
-        <p class="text-xs text-muted uppercase tracking-wider mb-1">Years Active</p>
-        <p class="stat-num text-3xl" id="stat-years">—</p>
-      </div>
-      <div class="card rounded p-4">
-        <p class="text-xs text-muted uppercase tracking-wider mb-1">Co-authors</p>
-        <p class="stat-num text-3xl" id="stat-coauthors">—</p>
-      </div>
-    </div>
-
-    <div class="card rounded p-4 mb-4">
-      <div class="flex items-center justify-between mb-3 flex-wrap gap-3">
-        <label class="text-xs uppercase tracking-wider text-muted">연도 범위</label>
-        <span id="year-range-label" class="mono text-xs"></span>
-      </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <p class="text-xs text-muted mb-1">시작</p>
-          <input type="range" id="year-min" class="w-full">
-        </div>
-        <div>
-          <p class="text-xs text-muted mb-1">종료</p>
-          <input type="range" id="year-max" class="w-full">
-        </div>
-      </div>
-    </div>
-
-    <div class="card rounded p-4 mb-6 flex flex-wrap items-center gap-3">
-      <span class="text-xs uppercase tracking-wider text-muted">저자 역할 필터</span>
-      <div class="flex gap-1" id="role-filter">
-        <button data-role="all" class="role-btn active text-xs px-3 py-1.5 rounded">전체</button>
-        <button data-role="first" class="role-btn text-xs px-3 py-1.5 rounded">제1저자</button>
-        <button data-role="senior" class="role-btn text-xs px-3 py-1.5 rounded">교신/마지막 저자</button>
-        <button data-role="middle" class="role-btn text-xs px-3 py-1.5 rounded">중간 저자</button>
-      </div>
-      <span id="active-coauthor-filter" class="hidden ml-auto text-xs">
-        <span class="text-muted">공저자 필터:</span> <span id="active-coauthor-name" class="mono"></span>
-        <button id="clear-coauthor-filter" class="ml-2 underline-offset-2 hover:underline text-muted">×</button>
-      </span>
-    </div>
-
-    <div class="border-b rule mb-6 flex gap-6 overflow-x-auto">
-      <button class="tab-btn active py-3 text-sm font-medium whitespace-nowrap" data-tab="bubble">Bubble Timeline</button>
-      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="bubble3d">3D Timeline</button>
-      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="network">공저자 네트워크</button>
-      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="streamgraph">주제 진화</button>
-      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="dotplot">공저자 × 연도</button>
-      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="journals">저널 (IF)</button>
-      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="papers">논문 목록</button>
-    </div>
-
-    <div id="tab-bubble" class="tab-panel">
-      <div class="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <h3 class="display text-lg">Career Lifeline</h3>
-        <p class="text-xs text-muted">버블 = 논문 · 크기 = 인용 · 색 = 주제 · 외형 = 저자 역할</p>
-      </div>
-      <div class="card rounded p-4">
-        <div id="bubble-legend" class="flex flex-wrap gap-3 text-xs mb-3"></div>
-        <div style="position: relative; height: 540px;">
-          <canvas id="bubble-canvas" role="img" aria-label="Bubble timeline of publications"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <div id="tab-bubble3d" class="tab-panel hidden">
-      <div class="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <h3 class="display text-lg">3D Timeline</h3>
-        <div class="flex items-center gap-3 flex-wrap">
-          <p class="text-xs text-muted">X: 연도 &middot; Y: 저널 IF &middot; Z: 인용 수 &nbsp;|&nbsp; 우클릭+드래그: 회전 &middot; 좌클릭+드래그: 이동 &middot; 스크롤: 확대</p>
-          <button id="bubble-3d-reset" class="text-xs px-3 py-1 rounded" style="border:1px solid var(--rule);color:var(--ink-muted);background:transparent;cursor:pointer;">시점 초기화</button>
-        </div>
-      </div>
-      <div class="card rounded" style="overflow:hidden;">
-        <div id="bubble-3d-container" style="height:580px;"></div>
-      </div>
-    </div>
-
-    <div id="tab-network" class="tab-panel hidden">
-      <div class="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <h3 class="display text-lg">Co-author Co-occurrence</h3>
-        <p class="text-xs text-muted">노드 = 공저자 (본인 제외) · 클릭 → 연결 목록</p>
-      </div>
-      <div class="card rounded p-4">
-        <div class="flex items-center gap-3 mb-3 flex-wrap">
-          <label class="text-xs text-muted">최소 공저 횟수:</label>
-          <input type="range" id="min-papers" min="1" max="10" value="2" class="w-32">
-          <span id="min-papers-label" class="mono text-xs">2</span>
-          <span id="network-stats" class="text-xs text-muted ml-auto"></span>
-        </div>
-        <div style="display:flex;">
-          <div id="network-container" style="height:600px; position:relative; flex:1; min-width:0;"></div>
-          <div id="network-sidebar" class="hidden" style="width:220px; flex-shrink:0; height:600px; overflow-y:auto; border-left:1px solid var(--rule);"></div>
-        </div>
-      </div>
-    </div>
-
-    <div id="tab-streamgraph" class="tab-panel hidden">
-      <h3 class="display text-lg mb-3">Topic Evolution</h3>
-      <div class="card rounded p-4">
-        <div id="streamgraph-container" style="height: 400px;"></div>
-      </div>
-    </div>
-
-    <div id="tab-dotplot" class="tab-panel hidden">
-      <h3 class="display text-lg mb-3">Co-author Timeline</h3>
-      <div class="card rounded p-4">
-        <div id="dotplot-container" style="height: 500px; position: relative;">
-          <canvas id="dotplot-canvas" role="img" aria-label="Co-author dot plot"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <div id="tab-journals" class="tab-panel hidden">
-      <div class="flex items-baseline justify-between mb-4">
-        <h3 class="display text-lg">저널 분포</h3>
-        <p class="text-xs text-muted">IF는 OpenAlex 2-year mean citedness (JCR과 동일 공식, 다른 DB)</p>
-      </div>
-      <div class="card rounded overflow-hidden">
-        <table class="kg-table">
-          <thead id="journals-thead"><tr>
-            <th>저널</th>
-            <th class="text-right" data-sort="papers">논문 수<span class="sort-arrow" style="font-size:10px;"> ↓</span></th>
-            <th class="text-right" data-sort="cites">총 인용<span class="sort-arrow" style="font-size:10px;"></span></th>
-            <th class="text-right" data-sort="if">JCR IF<span class="sort-arrow" style="font-size:10px;"></span></th>
-            <th class="text-right" data-sort="hindex">h-index<span class="sort-arrow" style="font-size:10px;"></span></th>
-          </tr></thead>
-          <tbody id="journals-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div id="tab-papers" class="tab-panel hidden">
-      <h3 class="display text-lg mb-4">논문 목록</h3>
-      <div class="card rounded overflow-hidden">
-        <table class="kg-table">
-          <thead id="papers-thead"><tr>
-            <th style="width: 60px;" data-sort="year">연도<span class="sort-arrow" style="font-size:10px;"> ↓</span></th>
-            <th style="width: 80px;" data-role-cycle title="클릭하여 역할별 필터">역할<span id="papers-role-label" style="font-size:10px;color:var(--ink-muted);"></span></th>
-            <th>제목 / 저널</th>
-            <th class="text-right" style="width: 80px;" data-sort="cites">인용<span class="sort-arrow" style="font-size:10px;"></span></th>
-          </tr></thead>
-          <tbody id="papers-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-
-  </section>
-
-  <footer class="mt-16 pt-6 border-t rule text-xs text-muted">
-    Data: <a href="https://openalex.org" target="_blank" class="underline">OpenAlex</a> ·
-    IF proxy = 2-year mean citedness (same formula as JCR IF, different citation database).
-  </footer>
-</div>
-
-<!-- All modules inlined — load order: state → api → search/dashboard → viz -->
-{js_blocks}
-</body>
-</html>"""
+html = re.sub(r'<script src="([^"]+)"></script>', replace_js, html)
 
 out_path = os.path.join(BASE, 'researcher-kg.html')
 with open(out_path, 'w', encoding='utf-8') as f:
