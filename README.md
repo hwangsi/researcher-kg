@@ -9,25 +9,12 @@
 ### 온라인 (GitHub Pages)
 **https://hwangsi.github.io/researcher-kg/**
 
-### 단일 파일 배포판 다운로드
-[`researcher-kg.html`](researcher-kg.html) 을 다운로드 → 더블클릭으로 실행.
-모든 코드가 한 파일에 포함되어 있습니다 (약 330 KB).
-
 ### 로컬 개발
 ```bash
 # index.html 더블클릭, 또는:
 python3 -m http.server 8000
 # 브라우저에서 http://localhost:8000
 ```
-
-## 단일 파일 빌드
-
-```bash
-python build_dist.py
-# → researcher-kg.html 생성 (약 330 KB)
-```
-
-소스 수정 후 `build_dist.py`를 실행하면 `researcher-kg.html`이 재생성됩니다.
 
 ## 주요 기능
 
@@ -55,9 +42,7 @@ python build_dist.py
 ## 파일 구조
 
 ```
-researcher-kg.html   ← 단일 파일 배포판 (빌드 결과물)
-build_dist.py        ← 빌드 스크립트
-index.html           ← 개발용 진입점
+index.html           ← 진입점
 css/styles.css
 js/
   api.js, state.js, search.js, dashboard.js
