@@ -298,6 +298,8 @@ RKG.bubbleTimeline = (function() {
             grid: { color: 'rgba(0,0,0,0.04)' },
           },
           y: {
+            // IF 높은 저널(index 0)을 위에 표시 (Chart.js 기본은 0이 아래라 reverse 필요)
+            reverse: true,
             min: -0.7, max: Math.max(_journalsList.length - 0.2, 0.5),
             ticks: {
               stepSize: 1,

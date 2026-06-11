@@ -83,6 +83,7 @@ RKG.bubble3d = (function() {
     };
     _controls.enableDamping = true;
     _controls.dampingFactor = 0.08;
+    _controls.zoomSpeed = 0.4;  // 휠 줌 민감도 완화 (기본 1.0 → 노치당 5%에서 ~2%로)
     _controls.screenSpacePanning = true;
     _controls.target.set(0, 3, 4);
     _controls.update();
