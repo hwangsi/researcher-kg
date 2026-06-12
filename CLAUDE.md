@@ -40,10 +40,9 @@ Multi-ID merge: OpenAlex가 한국인 이름의 같은 사람을 여러 ID로 sp
 
 ## Impact factor handling
 
-- **No JCR IF.** Clarivate doesn't expose IF via API; scraping is TOS violation.
-- Use OpenAlex `summary_stats.2yr_mean_citedness` — same formula as JCR IF (citations in current year to articles published in previous 2 years), different citation database.
-- Label as "IF (2yr)" with footnote that it's OpenAlex-derived.
-- **Future enhancement:** maintain `data/jcr-if.json` as ISSN → IF lookup for major radiology journals (~30 journals covers most use cases). Manual curation, updated yearly.
+- **JCR 2025 is the PRIMARY source.** `data/jcr-if.js` is an ISSN → IF lookup (~13k entries) curated from the JCR 2025 report (`data/JCR2025_202506.pdf`), loaded as a `<script>` that assigns `RKG.jcrData`. Look up a journal's IF by its ISSN(s) against this table.
+- **OpenAlex `summary_stats.2yr_mean_citedness` is the FALLBACK** when an ISSN isn't in the JCR table — same formula as JCR IF (citations in current year to articles published in previous 2 years), different citation database. UI marks these fallback values with an "OA" badge; the resolved value carries an `if_source` of `'JCR'` or `'OA'`.
+- Clarivate still doesn't expose IF via API (scraping is a TOS violation) — hence the manually curated `jcr-if.js`, regenerated from `jcr-if.json` / the PDF, updated yearly.
 
 ## Visualization philosophy — IMPORTANT design decisions
 
@@ -57,7 +56,7 @@ We tried an ego network first. **It failed** and is intentionally removed. Reaso
 
 ### 1. Bubble Timeline (main view) — "career lifeline"
 - X = publication year
-- Y = journal (sorted by IF or paper count)
+- Y = journal (sorted by IF descending; axis uses `reverse: true` so the highest-IF journal sits at the top)
 - Bubble size = citations (sqrt scaling: `sqrt(cites) * 0.75 + 3.2`)
 - Bubble color = research topic (top topic per paper)
 - **Authorship role encoded on bubble itself:**
@@ -77,16 +76,19 @@ We tried an ego network first. **It failed** and is intentionally removed. Reaso
 - Default threshold: only show co-authors with ≥2 papers (configurable)
 - Bridge nodes (connecting clusters) become visually obvious
 
-### 3. Topic streamgraph (secondary, currently STUB) — "research evolution"
+### 3. Topic streamgraph (secondary, IMPLEMENTED) — "research evolution"
 - Stacked area chart, X = year, areas = topic frequency by year
 - Shows how research focus has shifted over time
-- Use D3 stack with `offset(d3.stackOffsetWiggle)` for streamgraph aesthetic
+- D3 stack with `offset(d3.stackOffsetWiggle)` + `order(d3.stackOrderInsideOut)` for streamgraph aesthetic
+- Top 8 topics by total paper count; hover shows vertical cursor line + tooltip (count, % of year); click a stream (or legend) to isolate it, click again to reset
+- Responds to all state filters (year, role, co-author); isolation is local UI state, not global
 
-### 4. Co-author dot plot (secondary, currently STUB) — "collaboration timeline"
-- Y = co-author (sorted by total papers, descending)
+### 4. Co-author dot plot (secondary, IMPLEMENTED) — "collaboration timeline"
+- Y = co-author (top 30 by total papers; `reverse: true` so most frequent on top)
 - X = year
-- Dot = paper together (size by citations)
-- Reveals long-term vs single-shot collaborators at a glance
+- Dot = paper together (size = sqrt(citations), color = primary topic)
+- Deterministic per-(work,author) Y-jitter avoids exact overlap without reshuffling on re-render
+- Click dot → open DOI. Reveals long-term vs single-shot collaborators at a glance
 
 ### Cross-filtering between views (key UX)
 - Click bubble in timeline → highlight that paper's co-authors in network, others fade
@@ -105,11 +107,14 @@ js/search.js            author search & disambiguation UI
 js/dashboard.js         dashboard controller, tabs, stats cards
 js/viz/
   bubble-timeline.js    Chart.js bubble chart with authorship encoding
+  bubble-3d.js          Three.js + OrbitControls 3D timeline (X=year, Y=IF, Z=√citations)
   coauthor-network.js   D3 force-directed co-author network (no ego node)
-  streamgraph.js        STUB — D3 streamgraph for topic evolution
-  dot-plot.js           STUB — Chart.js scatter as co-author × year dot plot
+  streamgraph.js        D3 wiggle streamgraph — topic evolution (top 8 topics)
+  dot-plot.js           Chart.js bubble chart as co-author × year dot plot (top 30)
 data/
-  jcr-if.json           manual ISSN → IF lookup (currently empty placeholder)
+  jcr-if.js             JCR 2025 ISSN → IF lookup (~13k entries), assigns RKG.jcrData; loaded via <script> in index.html
+  jcr-if.json           same data as JSON (source of truth for regenerating jcr-if.js)
+  JCR2025_202506.pdf    original JCR 2025 report (source for the IF table)
 reference/
   mvp-v1.html           original working monolithic MVP (do not modify)
 ```
