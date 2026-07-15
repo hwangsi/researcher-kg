@@ -40,9 +40,9 @@ Multi-ID merge: OpenAlex가 한국인 이름의 같은 사람을 여러 ID로 sp
 
 ## Impact factor handling
 
-- **JCR 2025 is the PRIMARY source.** `data/jcr-if.js` is an ISSN → IF lookup (~13k entries) curated from the JCR 2025 report (`data/JCR2025_202506.pdf`), loaded as a `<script>` that assigns `RKG.jcrData`. Look up a journal's IF by its ISSN(s) against this table.
+- **JCR 2026 (2025 JIF values) is the PRIMARY source.** `data/jcr-if.js` is an ISSN → IF lookup (~13.5k entries) extracted from the JCR 2026 report (`data/JCR2026_202606.pdf`) by `extract_jcr.py`, loaded as a `<script>` that assigns `RKG.jcrData`. Look up a journal's IF by its ISSN(s) against this table.
 - **OpenAlex `summary_stats.2yr_mean_citedness` is the FALLBACK** when an ISSN isn't in the JCR table — same formula as JCR IF (citations in current year to articles published in previous 2 years), different citation database. UI marks these fallback values with an "OA" badge; the resolved value carries an `if_source` of `'JCR'` or `'OA'`.
-- Clarivate still doesn't expose IF via API (scraping is a TOS violation) — hence the manually curated `jcr-if.js`, regenerated from `jcr-if.json` / the PDF, updated yearly.
+- Clarivate still doesn't expose IF via API (scraping is a TOS violation) — hence the local `jcr-if.js`, regenerated yearly from the new JCR PDF: `python extract_jcr.py <path-to-JCR-pdf>` rewrites both `data/jcr-if.json` (rich metadata: name, IF, rank, category) and `data/jcr-if.js` (ISSN → IF only).
 
 ## Visualization philosophy — IMPORTANT design decisions
 
@@ -112,9 +112,9 @@ js/viz/
   streamgraph.js        D3 wiggle streamgraph — topic evolution (top 8 topics)
   dot-plot.js           Chart.js bubble chart as co-author × year dot plot (top 30)
 data/
-  jcr-if.js             JCR 2025 ISSN → IF lookup (~13k entries), assigns RKG.jcrData; loaded via <script> in index.html
-  jcr-if.json           same data as JSON (source of truth for regenerating jcr-if.js)
-  JCR2025_202506.pdf    original JCR 2025 report (source for the IF table)
+  jcr-if.js             JCR 2026 ISSN → IF lookup (~13.5k entries), assigns RKG.jcrData; loaded via <script> in index.html
+  jcr-if.json           same data as JSON with name/rank/category metadata (regenerated together with jcr-if.js)
+  JCR2026_202606.pdf    original JCR 2026 report (source for the IF table; parsed by extract_jcr.py)
 reference/
   mvp-v1.html           original working monolithic MVP (do not modify)
 ```

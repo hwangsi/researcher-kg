@@ -26,7 +26,7 @@ python3 -m http.server 8000
 - **Co-author Network** — D3 force-directed, 본인 제외 공저자 co-occurrence
 - **Topic Streamgraph** — 연구 주제의 연도별 변화 흐름
 - **Co-author Dot Plot** — 공저자 × 연도 산점도
-- **저널 표** — JCR 2025 IF (fallback: OpenAlex 2yr citedness)
+- **저널 표** — JCR 2026 IF (fallback: OpenAlex 2yr citedness)
 - **논문 목록** — 역할 필터, DOI 링크
 
 ## 기술 스택
@@ -39,10 +39,19 @@ python3 -m http.server 8000
 | Three.js | 3D bubble timeline |
 | OpenAlex API | 논문·저자·저널 데이터 |
 
+## Impact Factor 데이터
+
+- **1순위: JCR 2026 (2025 JIF)** — `data/jcr-if.js`의 ISSN → IF 조회 테이블 (~13.5k 항목). Clarivate가 IF를 API로 제공하지 않아 JCR 리포트 PDF에서 직접 추출.
+- **2순위(fallback): OpenAlex 2yr mean citedness** — JCR 테이블에 없는 저널에 적용. JCR IF와 같은 공식·다른 인용 DB이며, UI에서 "OA" 배지로 구분.
+- **연간 갱신:** 새 JCR PDF를 받아 `python extract_jcr.py <JCR PDF 경로>` 실행 → `data/jcr-if.json`(저널명·IF·순위·카테고리)과 `data/jcr-if.js`(ISSN → IF)가 재생성됨. 이후 `python build_dist.py`로 단일 파일 배포본 갱신.
+
 ## 파일 구조
 
 ```
 index.html           ← 진입점
+researcher-kg.html   ← 단일 파일 배포본 (build_dist.py 산출물)
+build_dist.py        ← CSS/JS 인라인 빌드 스크립트
+extract_jcr.py       ← JCR PDF → jcr-if.json/js 추출 스크립트
 css/styles.css
 js/
   api.js, state.js, search.js, dashboard.js
@@ -50,7 +59,9 @@ js/
     bubble-timeline.js, coauthor-network.js
     streamgraph.js, dot-plot.js, bubble-3d.js
 data/
-  jcr-if.js          ← JCR 2025 IF 데이터
+  jcr-if.js          ← JCR 2026 ISSN → IF 조회 테이블
+  jcr-if.json        ← 동일 데이터 + 저널명·순위·카테고리 메타데이터
+  JCR2026_202606.pdf ← 원본 JCR 2026 리포트
 reference/mvp-v1.html
 ```
 
