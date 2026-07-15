@@ -11,21 +11,25 @@ RKG.bubbleTimeline = (function() {
     Chart.defaults.font.family = 'Arial, "Helvetica Neue", Helvetica, "Segoe UI", system-ui, sans-serif';
     Chart.defaults.font.size = 11;
     Chart.defaults.font.weight = '400';
-    Chart.defaults.color = '#6B6B6B';
+    Chart.defaults.color = '#6E6E73';
   }
   const TICK_FONT = { family: 'Arial, "Helvetica Neue", Helvetica, sans-serif', size: 11, weight: '400' };
 
   const TOPIC_PALETTE = [
-    '#0078D4', // metro blue
-    '#00B294', // metro teal
-    '#FF8C00', // metro orange
-    '#E81123', // metro red
-    '#8764B8', // metro purple
-    '#00B7C3', // metro cyan
-    '#498205', // metro green
+    '#0071E3', // blue
+    '#248A3D', // green
+    '#B25000', // orange
+    '#8944AB', // purple
+    '#0092A8', // teal
+    '#D70015', // red
+    '#5856D6', // indigo
   ];
-  const OTHER_COLOR = '#69797E';
-  const MAX_JOURNALS = 18;
+  const OTHER_COLOR = '#86868B';
+  // Vertical scroll instead of a journal cap: the chart box grows with the
+  // journal count (ROW_H px per journal) inside the fixed-height #bubble-scroll.
+  const ROW_H = 28;
+  const MIN_BOX_H = 540;
+  const AXIS_PAD_H = 90; // top padding + x-axis label area
 
   let _chart = null;
   let _journalsList = [];
@@ -77,7 +81,7 @@ RKG.bubbleTimeline = (function() {
     });
     // Sort by IF descending (top journals on top), ties broken by paper count.
     entries.sort((a, b) => (b.if_2yr - a.if_2yr) || (b.count - a.count));
-    return entries.slice(0, MAX_JOURNALS);
+    return entries;
   }
 
   function _buildTopicMap(works) {
@@ -127,18 +131,18 @@ RKG.bubbleTimeline = (function() {
 
     const roleHTML = `
       <span class="flex items-center gap-1.5 ml-3 pl-3 border-l rule">
-        <span style="width:12px;height:12px;border-radius:50%;border:2.5px solid #7F77DD;background:rgba(127,119,221,0.2);display:inline-block;box-sizing:border-box;flex-shrink:0;"></span>
+        <span style="width:12px;height:12px;border-radius:50%;border:2.5px solid #0071E3;background:rgba(0,113,227,0.2);display:inline-block;box-sizing:border-box;flex-shrink:0;"></span>
         <span class="text-muted">제1저자</span>
       </span>
       <span class="flex items-center gap-1.5">
         <svg width="13" height="13" viewBox="0 0 13 13" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
-          <polygon points="6.5,0.5 7.9,4.4 12.2,4.8 9.1,7.5 10.1,11.8 6.5,9.5 2.9,11.8 3.9,7.5 0.8,4.8 5.1,4.4" fill="#7F77DD"/>
+          <polygon points="6.5,0.5 7.9,4.4 12.2,4.8 9.1,7.5 10.1,11.8 6.5,9.5 2.9,11.8 3.9,7.5 0.8,4.8 5.1,4.4" fill="#0071E3"/>
         </svg>
         <span class="text-muted">교신저자</span>
       </span>
       <span class="flex items-center gap-1.5">
         <svg width="11" height="11" viewBox="0 0 11 11" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
-          <polygon points="5.5,0.5 10.5,10.5 0.5,10.5" fill="rgba(127,119,221,0.45)" stroke="rgba(127,119,221,0.65)" stroke-width="0.8"/>
+          <polygon points="5.5,0.5 10.5,10.5 0.5,10.5" fill="rgba(0,113,227,0.45)" stroke="rgba(0,113,227,0.65)" stroke-width="0.8"/>
         </svg>
         <span class="text-muted">중간저자</span>
       </span>
@@ -154,12 +158,12 @@ RKG.bubbleTimeline = (function() {
     _tooltipEl = document.createElement('div');
     Object.assign(_tooltipEl.style, {
       position: 'absolute', pointerEvents: 'auto', zIndex: '100',
-      background: 'rgba(255,254,250,0.97)', border: '1px solid #E5DFCF',
+      background: 'rgba(255,255,255,0.97)', border: '1px solid #D2D2D7',
       padding: '10px 13px', borderRadius: '5px', fontSize: '11.5px',
       lineHeight: '1.6', maxWidth: '320px', display: 'none', opacity: '1',
       fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif',
       fontFeatureSettings: 'normal', fontVariant: 'normal',
-      color: '#1A1A1A',
+      color: '#1D1D1F',
       boxShadow: '0 3px 14px rgba(0,0,0,0.1)',
       transition: 'opacity 0.12s',
     });
@@ -201,12 +205,12 @@ RKG.bubbleTimeline = (function() {
     el.innerHTML = `
       <div style="${AF}font-weight:600;line-height:1.4;margin-bottom:5px;">
         ${doi
-          ? `<a href="${doi}" target="_blank" rel="noopener" style="${AF}color:#0078D4;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${title}</a>`
+          ? `<a href="${doi}" target="_blank" rel="noopener" style="${AF}color:#0071E3;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${title}</a>`
           : `<span style="${AF}">${title}</span>`}
       </div>
-      <div style="${AF}color:#5A5A5A;margin-bottom:3px;">${journal} · ${p.x}</div>
-      <div style="${AF}color:#5A5A5A;">${w.cited_by_count || 0} 인용 · ${roleLabel}${p._topic ? ' · ' + p._topic : ''}</div>
-      ${doi ? `<div style="${AF}color:#ADADAD;font-size:10px;margin-top:4px;">↗ 논문 링크 클릭 가능</div>` : ''}
+      <div style="${AF}color:#515154;margin-bottom:3px;">${journal} · ${p.x}</div>
+      <div style="${AF}color:#515154;">${w.cited_by_count || 0} 인용 · ${roleLabel}${p._topic ? ' · ' + p._topic : ''}</div>
+      ${doi ? `<div style="${AF}color:#AEAEB2;font-size:10px;margin-top:4px;">↗ 논문 링크 클릭 가능</div>` : ''}
     `;
 
     el.style.display = 'block';
@@ -264,6 +268,12 @@ RKG.bubbleTimeline = (function() {
     if (_tooltipEl) { _tooltipEl.remove(); _tooltipEl = null; }
     if (_tooltipHideTimer) { clearTimeout(_tooltipHideTimer); _tooltipHideTimer = null; }
 
+    // Grow the chart box with the journal count; #bubble-scroll scrolls the rest.
+    const box = document.getElementById('bubble-chart-box');
+    if (box) {
+      box.style.height = Math.max(MIN_BOX_H, _journalsList.length * ROW_H + AXIS_PAD_H) + 'px';
+    }
+
     const s = RKG.state.get();
     const xMin = s.filteredYearMin - 0.6;
     const xMax = s.filteredYearMax + 0.6;
@@ -294,7 +304,7 @@ RKG.bubbleTimeline = (function() {
           x: {
             type: 'linear',
             min: xMin, max: xMax,
-            ticks: { stepSize: 1, callback: v => Math.round(v), color: '#6B6B6B', font: TICK_FONT },
+            ticks: { stepSize: 1, callback: v => Math.round(v), color: '#6E6E73', font: TICK_FONT },
             grid: { color: 'rgba(0,0,0,0.04)' },
           },
           y: {
@@ -303,7 +313,7 @@ RKG.bubbleTimeline = (function() {
             min: -0.7, max: Math.max(_journalsList.length - 0.2, 0.5),
             ticks: {
               stepSize: 1,
-              color: '#6B6B6B',
+              color: '#6E6E73',
               font: TICK_FONT,
               padding: 6,
               callback: v => {

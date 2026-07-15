@@ -14,10 +14,10 @@ RKG.coauthorNetwork = (function() {
   const W = 800, H = 600;
 
   const TOPIC_PALETTE = [
-    '#0078D4', '#00B294', '#FF8C00', '#E81123',
-    '#8764B8', '#00B7C3', '#498205',
+    '#0071E3', '#248A3D', '#B25000', '#8944AB',
+    '#0092A8', '#D70015', '#5856D6',
   ];
-  const OTHER_COLOR = '#69797E';
+  const OTHER_COLOR = '#86868B';
 
   let _container = null;
   let _svg = null;
@@ -202,7 +202,7 @@ RKG.coauthorNetwork = (function() {
     if (!nodes.length) {
       _gLabels.append('text')
         .attr('x', W / 2).attr('y', H / 2).attr('text-anchor', 'middle')
-        .attr('fill', '#6B6B6B').attr('font-size', 14)
+        .attr('fill', '#6E6E73').attr('font-size', 14)
         .text('표시할 공저자가 없습니다 (최소 공저 횟수를 줄여보세요)');
       return;
     }
@@ -369,21 +369,21 @@ RKG.coauthorNetwork = (function() {
     Object.assign(div.style, {
       position: 'absolute', right: '0', bottom: '0',
       zIndex: '10', pointerEvents: 'none',
-      background: 'rgba(255,254,250,0.96)',
-      border: '1px solid #CCC8B8',
+      background: 'rgba(255,255,255,0.96)',
+      border: '1px solid #D2D2D7',
       borderRadius: '5px 0 0 0',
       padding: '7px 10px 8px',
       fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif',
       fontFeatureSettings: 'normal',
       fontVariant: 'normal',
       fontSize: '10.5px',
-      color: '#1A1A1A',
+      color: '#1D1D1F',
       lineHeight: '1.85',
       minWidth: '160px',
     });
 
     const FS = 'font-family:Arial,"Helvetica Neue",Helvetica,sans-serif;font-feature-settings:normal;font-variant:normal;';
-    let html = `<div style="${FS}font-size:9px;font-weight:700;color:#9B9B9B;letter-spacing:0.06em;margin-bottom:4px;">TOPIC</div>`;
+    let html = `<div style="${FS}font-size:9px;font-weight:700;color:#86868B;letter-spacing:0.06em;margin-bottom:4px;">TOPIC</div>`;
     entries.forEach(([topic, color]) => {
       html += `<div style="display:flex;align-items:center;gap:6px;">
         <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0;display:inline-block;"></span>

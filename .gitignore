@@ -1,0 +1,3 @@
+# OMC runtime state (operational artifacts, not source)
+.omc/
+__pycache__/

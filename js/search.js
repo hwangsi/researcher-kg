@@ -107,7 +107,7 @@ RKG.search = (function() {
     const noteEl = $('#inst-filter-note');
     if (noteEl) {
       if (resolvedInst.length) {
-        noteEl.innerHTML = `기관 필터 적용됨: <span style="color:#2D5A1F;font-weight:500;">${resolvedInst.slice(0, 2).join(', ')}${resolvedInst.length > 2 ? ` 외 ${resolvedInst.length - 2}개` : ''}</span>`;
+        noteEl.innerHTML = `기관 필터 적용됨: <span style="color:#1D7A35;font-weight:500;">${resolvedInst.slice(0, 2).join(', ')}${resolvedInst.length > 2 ? ` 외 ${resolvedInst.length - 2}개` : ''}</span>`;
         noteEl.classList.remove('hidden');
       } else {
         noteEl.classList.add('hidden');
@@ -139,9 +139,9 @@ RKG.search = (function() {
             ${orcid ? `<span class="mono text-[10px] text-muted whitespace-nowrap">${orcid}</span>` : ''}
           </div>
           <p class="text-xs text-muted mb-1">${insts}</p>
-          ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#8B2331;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
-          ${specEvidence ? `<p class="text-xs mb-2" style="color:#2D5A1F;">전공 근거: 주요 논문 ${specEvidence.matchedCount}/${specEvidence.sampleSize}건 일치</p>` : ''}
-          ${dupCount > 1 ? `<p class="text-xs mb-2" style="color:#6A4A00;">중복 가능 ID ${dupCount}개: 필요하면 체크해서 병합</p>` : ''}
+          ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#0071E3;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
+          ${specEvidence ? `<p class="text-xs mb-2" style="color:#1D7A35;">전공 근거: 주요 논문 ${specEvidence.matchedCount}/${specEvidence.sampleSize}건 일치</p>` : ''}
+          ${dupCount > 1 ? `<p class="text-xs mb-2" style="color:#B25000;">중복 가능 ID ${dupCount}개: 필요하면 체크해서 병합</p>` : ''}
           <div class="flex gap-3 text-xs">
             <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
             <span><span class="text-muted">Cited:</span> <span class="mono">${fmtNum(a.cited_by_count)}</span></span>

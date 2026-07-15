@@ -11,10 +11,10 @@ RKG.dotPlot = (function() {
 
   const MAX_AUTHORS = 30;
   const TOPIC_PALETTE = [
-    '#0078D4', '#00B294', '#FF8C00', '#E81123',
-    '#8764B8', '#00B7C3', '#498205',
+    '#0071E3', '#248A3D', '#B25000', '#8944AB',
+    '#0092A8', '#D70015', '#5856D6',
   ];
-  const OTHER_COLOR = '#69797E';
+  const OTHER_COLOR = '#86868B';
 
   let _chart = null;
 
@@ -129,7 +129,7 @@ RKG.dotPlot = (function() {
     const legendRows = legendEntries.length ? Math.ceil(legendEntries.length / colCount) : 0;
     const legendH = legendEntries.length ? (legendRows * 26 + 8) : 0;
     const legendHTML = legendEntries.length ? `
-      <div style="height:${legendH}px;display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px 8px;align-items:center;padding:4px 0;font-size:11px;color:#3A3A3A;font-family:Arial,sans-serif;">
+      <div style="height:${legendH}px;display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px 8px;align-items:center;padding:4px 0;font-size:11px;color:#333336;font-family:Arial,sans-serif;">
         ${legendEntries.map(([t, c]) => `
           <span style="display:flex;align-items:center;gap:5px;min-width:0;">
             <span style="width:10px;height:10px;border-radius:2px;background:${c};flex-shrink:0;display:inline-block;"></span>
@@ -163,10 +163,10 @@ RKG.dotPlot = (function() {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: 'rgba(255,254,250,0.97)',
-            titleColor: '#1A1A1A',
-            bodyColor: '#6B6B6B',
-            borderColor: '#E5DFCF',
+            backgroundColor: 'rgba(255,255,255,0.97)',
+            titleColor: '#1D1D1F',
+            bodyColor: '#6E6E73',
+            borderColor: '#D2D2D7',
             borderWidth: 1,
             padding: 10,
             callbacks: {
@@ -194,7 +194,7 @@ RKG.dotPlot = (function() {
             ticks: {
               stepSize: 1,
               callback: v => Number.isInteger(v) ? v : '',
-              color: '#6B6B6B',
+              color: '#6E6E73',
               font: { size: 11, family: 'Arial' },
             },
             grid: { color: 'rgba(0,0,0,0.04)' },
@@ -206,7 +206,7 @@ RKG.dotPlot = (function() {
             reverse: true,  // index 0 (most frequent) at top
             ticks: {
               stepSize: 1,
-              color: '#6B6B6B',
+              color: '#6E6E73',
               font: { size: 10, family: 'Arial' },
               callback: v => {
                 const i = Math.round(v);

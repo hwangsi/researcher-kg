@@ -11,8 +11,8 @@ RKG.streamgraph = (function() {
 
   const MAX_TOPICS = 8;
   const TOPIC_PALETTE = [
-    '#0078D4', '#00B294', '#FF8C00', '#E81123',
-    '#8764B8', '#00B7C3', '#498205', '#C239B3',
+    '#0071E3', '#248A3D', '#B25000', '#8944AB',
+    '#0092A8', '#D70015', '#5856D6', '#C7256E',
   ];
   const FADE_OPACITY = 0.08;
   const ACTIVE_OPACITY = 0.88;
@@ -30,11 +30,11 @@ RKG.streamgraph = (function() {
     _tooltip = document.createElement('div');
     Object.assign(_tooltip.style, {
       position: 'fixed', pointerEvents: 'none', display: 'none',
-      background: 'rgba(255,254,250,0.97)', border: '1px solid #E5DFCF',
+      background: 'rgba(255,255,255,0.97)', border: '1px solid #D2D2D7',
       padding: '9px 12px', borderRadius: '4px', fontSize: '12px',
       lineHeight: '1.6', zIndex: '1000', maxWidth: '240px',
       fontFamily: "Arial, sans-serif",
-      color: '#1A1A1A', boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+      color: '#1D1D1F', boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
     });
     document.body.appendChild(_tooltip);
 
@@ -187,7 +187,7 @@ RKG.streamgraph = (function() {
       const maxChars = Math.floor((cellW - 22) / 6.8);
       lg.append('text')
         .attr('x', 20).attr('y', 12)
-        .attr('font-size', 12).attr('fill', '#3A3A3A')
+        .attr('font-size', 12).attr('fill', '#333336')
         .attr('font-family', 'Arial, sans-serif')
         .attr('class', `sg-legend-text-${_cssId(t)}`)
         .text(t.length > maxChars ? t.slice(0, maxChars - 1) + '…' : t);
@@ -229,8 +229,8 @@ RKG.streamgraph = (function() {
         _tooltip.innerHTML = `
           <div style="font-weight:600;font-size:13px;margin-bottom:5px;">${year}년</div>
           <div style="display:flex;align-items:center;">${dot}<span style="font-size:12px;">${d.key.length > 30 ? d.key.slice(0, 28) + '…' : d.key}</span></div>
-          <div style="font-size:12px;color:#6B6B6B;margin-top:3px;">${cnt}편 · 전체의 ${pct}%</div>
-          <div style="font-size:11px;color:#9B9B9B;margin-top:2px;">총 ${total}편 (해당 연도)</div>
+          <div style="font-size:12px;color:#6E6E73;margin-top:3px;">${cnt}편 · 전체의 ${pct}%</div>
+          <div style="font-size:11px;color:#86868B;margin-top:2px;">총 ${total}편 (해당 연도)</div>
         `;
         _tooltip.style.display = 'block';
 
@@ -256,10 +256,10 @@ RKG.streamgraph = (function() {
     g.append('g')
       .attr('transform', `translate(0, ${innerH})`)
       .call(xAxis)
-      .call(ax => ax.select('.domain').attr('stroke', '#DDD7C5'))
-      .call(ax => ax.selectAll('.tick line').attr('stroke', '#DDD7C5'))
+      .call(ax => ax.select('.domain').attr('stroke', '#D2D2D7'))
+      .call(ax => ax.selectAll('.tick line').attr('stroke', '#D2D2D7'))
       .call(ax => ax.selectAll('.tick text')
-        .attr('fill', '#4A4A4A')
+        .attr('fill', '#424245')
         .attr('font-size', 12)
         .attr('font-family', "Arial, sans-serif")
       );
@@ -267,7 +267,7 @@ RKG.streamgraph = (function() {
     // --- Cursor line ---
     const cursorLine = g.append('line')
       .attr('y1', 0).attr('y2', innerH)
-      .attr('stroke', '#1A1A1A').attr('stroke-width', 1)
+      .attr('stroke', '#1D1D1F').attr('stroke-width', 1)
       .attr('stroke-dasharray', '3,3')
       .attr('opacity', 0)
       .attr('pointer-events', 'none');
