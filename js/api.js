@@ -455,7 +455,7 @@ RKG.api = (function() {
   // Batch fetch source (journal) details for IF info.
   // Input: iterable of OpenAlex source IDs (full URLs).
   // Returns: Map<sourceId, {display_name, host_org, if_2yr, if_source, h_index, works_count, issn_l}>.
-  // if_source: 'JCR' when from JCR 2025 data, 'OA' when from OpenAlex 2yr citedness.
+  // if_source: 'JCR' when from JCR 2026 data, 'OA' when from OpenAlex 2yr citedness.
   async function fetchSourceStats(sourceIds) {
     const jcr = window.RKG && window.RKG.jcrData;
     const stats = new Map();
