@@ -1,3 +1,8 @@
 # OMC runtime state (operational artifacts, not source)
 .omc/
 __pycache__/
+
+# Clarivate-licensed JCR data: keep local only, never commit
+data/JCR*.pdf
+data/jcr-if.js
+data/jcr-if.json
