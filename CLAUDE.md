@@ -100,7 +100,7 @@ We tried an ego network first. **It failed** and is intentionally removed. Reaso
 
 ```
 index.html              entry point; loads scripts in order
-css/styles.css          all custom styles (cream editorial theme)
+css/styles.css          all custom styles (Apple/macOS light theme)
 js/api.js               OpenAlex API wrapper (searchAuthors, fetchAllWorks, fetchSourceStats)
 js/state.js             central state + pub/sub + filtered selectors
 js/search.js            author search & disambiguation UI

@@ -9,8 +9,8 @@ window.RKG = window.RKG || {};
 RKG.bubble3d = (function() {
   'use strict';
 
-  const TOPIC_PALETTE = ['#0078D4','#00B294','#FF8C00','#E81123','#8764B8','#00B7C3','#498205'];
-  const OTHER_COLOR = '#69797E';
+  const TOPIC_PALETTE = ['#0071E3','#248A3D','#B25000','#8944AB','#0092A8','#D70015','#5856D6'];
+  const OTHER_COLOR = '#86868B';
 
   let _container, _tooltip;
   let _scene, _camera, _renderer, _controls;
@@ -33,7 +33,7 @@ RKG.bubble3d = (function() {
     _container = document.getElementById('bubble-3d-container');
     if (!_container) return;
     if (!window.THREE || !THREE.OrbitControls) {
-      _container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:13px;color:#6B6B6B;">Three.js를 불러올 수 없습니다 (네트워크 확인).</div>';
+      _container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:13px;color:#6E6E73;">Three.js를 불러올 수 없습니다 (네트워크 확인).</div>';
       return;
     }
 
@@ -45,8 +45,8 @@ RKG.bubble3d = (function() {
 
     // Scene
     _scene = new THREE.Scene();
-    _scene.background = new THREE.Color(0xFFFEFA);
-    _scene.fog = new THREE.FogExp2(0xFFFEFA, 0.016);
+    _scene.background = new THREE.Color(0xFFFFFF);
+    _scene.fog = new THREE.FogExp2(0xFFFFFF, 0.016);
 
     // Camera
     _camera = new THREE.PerspectiveCamera(48, w / h, 0.1, 300);
@@ -68,7 +68,7 @@ RKG.bubble3d = (function() {
     _scene.add(fill);
 
     // Floor grid
-    const grid = new THREE.GridHelper(26, 26, 0xDDD7C5, 0xDDD7C5);
+    const grid = new THREE.GridHelper(26, 26, 0xD2D2D7, 0xD2D2D7);
     grid.position.y = -0.45;
     grid.material.transparent = true;
     grid.material.opacity = 0.55;
@@ -96,11 +96,11 @@ RKG.bubble3d = (function() {
     _tooltip = document.createElement('div');
     Object.assign(_tooltip.style, {
       position: 'absolute', top: '0', left: '0', pointerEvents: 'none',
-      background: 'rgba(255,254,250,0.97)', border: '1px solid #E5DFCF',
+      background: 'rgba(255,255,255,0.97)', border: '1px solid #D2D2D7',
       padding: '9px 12px', borderRadius: '4px', fontSize: '11.5px',
       lineHeight: '1.55', maxWidth: '260px', display: 'none',
       fontFamily: "'Pretendard Variable', system-ui, sans-serif",
-      color: '#1A1A1A', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', zIndex: '10',
+      color: '#1D1D1F', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', zIndex: '10',
     });
     _container.appendChild(_tooltip);
 
@@ -119,7 +119,7 @@ RKG.bubble3d = (function() {
   }
 
   function _addAxisLabels() {
-    const base = 'position:absolute;pointer-events:none;font-size:11px;color:#5A5A5A;background:rgba(255,254,250,0.85);padding:2px 8px;border-radius:3px;font-family:Arial,sans-serif;border:1px solid rgba(200,196,185,0.6);white-space:nowrap;';
+    const base = 'position:absolute;pointer-events:none;font-size:11px;color:#515154;background:rgba(255,255,255,0.85);padding:2px 8px;border-radius:3px;font-family:Arial,sans-serif;border:1px solid rgba(210,210,215,0.7);white-space:nowrap;';
 
     const xLbl = document.createElement('div');
     xLbl.style.cssText = base + 'bottom:14px;right:14px;';
