@@ -117,7 +117,7 @@ RKG.dotPlot = (function() {
 
     if (!authors.length) {
       container.style.height = '120px';
-      container.innerHTML = '<div class="flex items-center justify-center h-full text-sm" style="color:var(--ink-muted)">표시할 공저자 없음</div>';
+      container.innerHTML = '<div class="flex items-center justify-center h-full text-sm" style="color:var(--ink-muted)">No co-authors to display</div>';
       return;
     }
 
@@ -180,7 +180,7 @@ RKG.dotPlot = (function() {
                 return [
                   p._authorName,
                   title,
-                  `${w.publication_year} · ${w.cited_by_count || 0} 인용`,
+                  `${w.publication_year} · ${w.cited_by_count || 0} citations`,
                 ].filter(Boolean);
               },
             },

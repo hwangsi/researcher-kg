@@ -38,8 +38,8 @@ RKG.search = (function() {
   function setSearching(on) {
     $('#search-btn').disabled = on;
     $('#search-btn-text').innerHTML = on
-      ? '<span class="loader" style="vertical-align: -2px;"></span> 검색 중'
-      : '검색';
+      ? '<span class="loader" style="vertical-align: -2px;"></span> Searching'
+      : 'Search';
   }
 
   function fmtNum(n) {
@@ -62,7 +62,7 @@ RKG.search = (function() {
     const koreaOnly = !!($('#korea-only-chk') && $('#korea-only-chk').checked);
 
     if (!orcid && !name && !inst && !specialty) {
-      showStatus('저자 이름, ORCID, 소속, 전문 분야 중 하나 이상을 입력하세요.', 'error');
+      showStatus('Enter at least one of: author name, ORCID, institution, or specialty.', 'error');
       return;
     }
 
@@ -75,11 +75,11 @@ RKG.search = (function() {
       _candidates = await RKG.api.searchAuthors({ name, institution: inst, specialty, orcid, koreaOnly });
       if (!_candidates.length) {
         if (orcid) {
-          showStatus('ORCID는 조회됐더라도 함께 입력한 이름·소속·전문 분야 조건을 모두 만족하는 저자가 없습니다.', 'error');
+          showStatus('The ORCID was found, but no author matches all the name/institution/specialty conditions you entered.', 'error');
         } else if (inst || specialty) {
-          showStatus('입력한 이름·소속·전문 분야 조건을 모두 만족하는 저자를 찾지 못했습니다. 조건을 하나씩 완화해보세요.', 'error');
+          showStatus('No author matches all the name/institution/specialty conditions. Try relaxing them one at a time.', 'error');
         } else {
-          showStatus('일치하는 저자를 찾지 못했습니다. 이름 철자나 기관 키워드를 확인해보세요.', 'error');
+          showStatus('No matching authors found. Check the name spelling or institution keyword.', 'error');
         }
         return;
       }
@@ -89,7 +89,7 @@ RKG.search = (function() {
       }
       renderCandidates();
     } catch (e) {
-      showStatus(`검색 오류: ${e.message}`, 'error');
+      showStatus(`Search error: ${e.message}`, 'error');
     } finally {
       setSearching(false);
     }
@@ -107,7 +107,7 @@ RKG.search = (function() {
     const noteEl = $('#inst-filter-note');
     if (noteEl) {
       if (resolvedInst.length) {
-        noteEl.innerHTML = `기관 필터 적용됨: <span style="color:#1D7A35;font-weight:500;">${resolvedInst.slice(0, 2).join(', ')}${resolvedInst.length > 2 ? ` 외 ${resolvedInst.length - 2}개` : ''}</span>`;
+        noteEl.innerHTML = `Institution filter applied: <span style="color:#1D7A35;font-weight:500;">${resolvedInst.slice(0, 2).join(', ')}${resolvedInst.length > 2 ? ` +${resolvedInst.length - 2} more` : ''}</span>`;
         noteEl.classList.remove('hidden');
       } else {
         noteEl.classList.add('hidden');
@@ -116,7 +116,7 @@ RKG.search = (function() {
 
     list.innerHTML = _candidates.map((a, i) => {
       const displayInsts = a._displayInstitutions || a._matchedInstitutions || a._institutions || [];
-      const insts = displayInsts.slice(0, 3).join(' · ') || '소속 미상';
+      const insts = displayInsts.slice(0, 3).join(' · ') || 'Unknown affiliation';
       const orcid = a.orcid ? a.orcid.replace('https://orcid.org/', '') : '';
       const dupCount = (a._duplicateGroupIds || []).length;
 
@@ -140,8 +140,8 @@ RKG.search = (function() {
           </div>
           <p class="text-xs text-muted mb-1">${insts}</p>
           ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#0071E3;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
-          ${specEvidence ? `<p class="text-xs mb-2" style="color:#1D7A35;">전공 근거: 주요 논문 ${specEvidence.matchedCount}/${specEvidence.sampleSize}건 일치</p>` : ''}
-          ${dupCount > 1 ? `<p class="text-xs mb-2" style="color:#B25000;">중복 가능 ID ${dupCount}개: 필요하면 체크해서 병합</p>` : ''}
+          ${specEvidence ? `<p class="text-xs mb-2" style="color:#1D7A35;">Specialty evidence: ${specEvidence.matchedCount}/${specEvidence.sampleSize} top papers match</p>` : ''}
+          ${dupCount > 1 ? `<p class="text-xs mb-2" style="color:#B25000;">${dupCount} possible duplicate IDs — check to merge if needed</p>` : ''}
           <div class="flex gap-3 text-xs">
             <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
             <span><span class="text-muted">Cited:</span> <span class="mono">${fmtNum(a.cited_by_count)}</span></span>
@@ -171,16 +171,130 @@ RKG.search = (function() {
     $('#candidates-section').classList.remove('hidden');
   }
 
+  const SPIN = '<span class="loader" style="vertical-align:-2px;"></span> ';
+
+  function _normTitle(t) {
+    return (t || '').toLowerCase().replace(/[^a-z0-9가-힣]+/g, ' ').trim();
+  }
+
+  // Stage 3 — PubMed: MeSH enrichment + Medline-only recall (see CLAUDE.md).
+  // Keyed ONLY on ORCID / DOIs — never name search. Returns minimal records
+  // for Medline papers absent from OpenAlex (viz-safe: source.id is null).
+  async function _enrichFromPubmed(works, orcid, orcidEntries, orcidDois) {
+    if (!RKG.pubmed) return [];
+    showStatus(`${SPIN}[3/3] Matching papers against PubMed...`);
+
+    const orcidPmids = new Set(orcidEntries.map(e => e.pmid).filter(Boolean));
+    const pmids = new Set(orcidPmids);
+    if (orcid) {
+      try {
+        for (const id of await RKG.pubmed.pmidsByOrcid(orcid)) pmids.add(id);
+      } catch (e) { console.warn('PubMed ORCID search failed (continuing)', e); }
+    }
+    const dois = works.map(w => w._doi).filter(Boolean);
+    for (const id of await RKG.pubmed.pmidsByDois(dois, (done, total) =>
+      showStatus(`${SPIN}[3/3] Matching DOIs on PubMed... (${done}/${total})`))) pmids.add(id);
+    if (!pmids.size) return [];
+
+    const articles = await RKG.pubmed.fetchArticles([...pmids], (done, total) =>
+      showStatus(`${SPIN}[3/3] Loading MeSH from PubMed... (${done}/${total})`));
+
+    const byDoi = new Map();
+    const byTitleYear = new Map();
+    for (const w of works) {
+      if (w._doi) byDoi.set(w._doi, w);
+      else if (w.title && w.publication_year) byTitleYear.set(`${_normTitle(w.title)}|${w.publication_year}`, w);
+    }
+
+    const medlineOnly = [];
+    for (const [pmid, art] of articles) {
+      const w = (art.doi && byDoi.get(art.doi))
+        || (art.title && art.year && byTitleYear.get(`${_normTitle(art.title)}|${art.year}`));
+      if (w) {
+        w._pmid = pmid;
+        if (art.mesh.length) w.mesh = art.mesh;
+        w._sources.pubmed = true;
+      } else if (orcidPmids.has(pmid) || (art.doi && orcidDois.has(art.doi))) {
+        // Medline-indexed, absent from OpenAlex, confirmed by the author's own
+        // ORCID record — high precision, so it bypasses the criteria filter.
+        medlineOnly.push({
+          id: 'pubmed:' + pmid,
+          doi: art.doi ? 'https://doi.org/' + art.doi : null,
+          _doi: art.doi,
+          _pmid: pmid,
+          title: art.title,
+          publication_year: art.year,
+          cited_by_count: 0,
+          authorships: [],
+          topics: [],
+          concepts: [],
+          primary_location: art.journal ? { source: { id: null, display_name: art.journal } } : null,
+          mesh: art.mesh,
+          _sources: { openalex: false, orcid: true, pubmed: true },
+        });
+      }
+    }
+    return medlineOnly;
+  }
+
+  // 3-stage works retrieval cascade (CLAUDE.md § "3-stage works retrieval pipeline"):
+  // 1) ORCID registry (identity spine) → 2) OpenAlex (metadata engine, required core)
+  // → 3) PubMed (MeSH + Medline recall). Stages 1 and 3 fail soft.
   async function _loadWorksAndActivate(author, idList) {
+    const orcid = (author.orcid || '').replace(/^https?:\/\/orcid\.org\//, '') || null;
+
+    // ---- Stage 1: ORCID registry ----
+    let orcidEntries = [];
+    if (orcid) {
+      showStatus(`${SPIN}[1/3] Fetching works from the ORCID registry...`);
+      try {
+        orcidEntries = await RKG.api.fetchOrcidWorks(orcid);
+      } catch (e) { console.warn('ORCID stage failed (continuing)', e); }
+    }
+    const orcidDois = new Set(orcidEntries.map(e => e.doi).filter(Boolean));
+
+    // ---- Stage 2: OpenAlex ----
     const allWorks = [];
-    const seen = new Set();
+    const byId = new Map();
+    const byDoi = new Map();
+    const addWorks = list => {
+      for (const w of list) {
+        const doi = RKG.api.normalizeDoi(w.doi);
+        if (byId.has(w.id) || (doi && byDoi.has(doi))) continue;
+        w._doi = doi;
+        w._sources = { openalex: true, orcid: !!(doi && orcidDois.has(doi)), pubmed: false };
+        allWorks.push(w);
+        byId.set(w.id, w);
+        if (doi) byDoi.set(doi, w);
+      }
+    };
+    const progress = c => showStatus(`${SPIN}[2/3] Loading works from OpenAlex... (${allWorks.length + c}${idList.length > 1 ? `, merging ${idList.length} IDs` : ''})`);
     for (const id of idList) {
-      const w = await RKG.api.fetchAllWorks(id, c => {
-        showStatus(`<span class="loader" style="vertical-align:-2px;"></span> 논문 로딩 중... (${allWorks.length + c}개${idList.length > 1 ? ', ' + idList.length + '개 ID 병합 중' : ''})`);
-      });
-      for (const work of w) {
-        const key = work.doi || work.id;
-        if (!seen.has(key)) { seen.add(key); allWorks.push(work); }
+      addWorks(await RKG.api.fetchAllWorks(id, progress));
+    }
+    if (orcid) {
+      try {
+        // Catch works under split author IDs not selected in the picker,
+        // then hydrate ORCID-registry DOIs OpenAlex knows but didn't link to this author.
+        addWorks(await RKG.api.fetchWorksByOrcid(orcid, progress));
+        const missing = [...orcidDois].filter(d => !byDoi.has(d));
+        if (missing.length) addWorks(await RKG.api.fetchWorksByDois(missing));
+      } catch (e) { console.warn('OpenAlex ORCID pass failed (continuing)', e); }
+
+      // The ORCID pass can surface works filed under split author IDs the user
+      // didn't merge. Fold those IDs into _mergedIds so role detection, the
+      // coauthor network (no-ego invariant), and criteria filtering all treat
+      // them as the focal author.
+      const focalIdSet = new Set(idList);
+      for (const w of allWorks) {
+        for (const a of (w.authorships || [])) {
+          const aOrcid = a.author && a.author.orcid && a.author.orcid.replace(/^https?:\/\/orcid\.org\//, '');
+          if (aOrcid === orcid && a.author.id) focalIdSet.add(a.author.id);
+        }
+      }
+      if (focalIdSet.size > idList.length) {
+        author._mergedIds = [...focalIdSet];
+        RKG.state.setAuthor(author);
       }
     }
 
@@ -188,19 +302,26 @@ RKG.search = (function() {
       ? RKG.api.filterWorksBySearchCriteria(allWorks, author)
       : allWorks;
     if (allWorks.length && !filteredWorks.length) {
-      throw new Error('선택한 저자의 논문은 불러왔지만 입력한 소속·전공 조건을 만족하는 논문이 없습니다.');
+      throw new Error('Works were loaded, but none match the institution/specialty conditions you entered.');
     }
 
+    // ---- Stage 3: PubMed (non-fatal) ----
+    let finalWorks = filteredWorks;
+    try {
+      const medlineOnly = await _enrichFromPubmed(filteredWorks, orcid, orcidEntries, orcidDois);
+      if (medlineOnly.length) finalWorks = [...filteredWorks, ...medlineOnly];
+    } catch (e) { console.warn('PubMed stage failed (continuing)', e); }
+
     const sourceIds = new Set();
-    for (const w of filteredWorks) {
+    for (const w of finalWorks) {
       const src = w.primary_location && w.primary_location.source && w.primary_location.source.id;
       if (src) sourceIds.add(src);
     }
 
-    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${sourceIds.size}개 저널의 IF 정보를 가져오는 중...`);
+    showStatus(`${SPIN}Fetching IF data for ${sourceIds.size} journals...`);
     const stats = await RKG.api.fetchSourceStats(sourceIds);
 
-    RKG.state.setWorks(filteredWorks);
+    RKG.state.setWorks(finalWorks);
     RKG.state.setSourceStats(stats);
     hideStatus();
     RKG.dashboard.activate();
@@ -208,12 +329,12 @@ RKG.search = (function() {
 
   async function selectAuthor(author) {
     $('#candidates-section').classList.add('hidden');
-    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${author.display_name} 의 논문을 불러오는 중...`);
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${author.display_name}...`);
     RKG.state.setAuthor(author);
     try {
       await _loadWorksAndActivate(author, [author.id]);
     } catch (e) {
-      showStatus(`데이터 로딩 실패: ${e.message}`, 'error');
+      showStatus(`Data loading failed: ${e.message}`, 'error');
     }
   }
 
@@ -221,7 +342,7 @@ RKG.search = (function() {
     $('#candidates-section').classList.add('hidden');
     const merged = {
       id: 'merged:' + authors.map(a => a.id).join(','),
-      display_name: authors[0].display_name + ` (${authors.length} IDs 병합)`,
+      display_name: authors[0].display_name + ` (${authors.length} IDs merged)`,
       _institutions: [...new Set(authors.flatMap(a => a._institutions))],
       _displayInstitutions: [...new Set(authors.flatMap(a => a._displayInstitutions || a._institutions))],
       _matchedInstitutions: [...new Set(authors.flatMap(a => a._matchedInstitutions || []))],
@@ -231,12 +352,12 @@ RKG.search = (function() {
       orcid: (authors.find(a => a.orcid) || {}).orcid || null,
       _searchCriteria: authors[0]._searchCriteria || null,
     };
-    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> ${merged.display_name} 의 논문을 불러오는 중...`);
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${merged.display_name}...`);
     RKG.state.setAuthor(merged);
     try {
       await _loadWorksAndActivate(merged, merged._mergedIds);
     } catch (e) {
-      showStatus(`데이터 로딩 실패: ${e.message}`, 'error');
+      showStatus(`Data loading failed: ${e.message}`, 'error');
     }
   }
 

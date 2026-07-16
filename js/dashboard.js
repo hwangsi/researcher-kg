@@ -12,7 +12,7 @@ RKG.dashboard = (function() {
   let _journalSort = { col: 'papers', dir: 'desc' };
   let _paperSort   = { col: 'year',   dir: 'desc' };
   const _ROLE_CYCLE = ['all', 'first', 'senior', 'middle'];
-  const _ROLE_LABEL = { all: '', first: ' · 제1저자', senior: ' · 교신저자', middle: ' · 중간저자' };
+  const _ROLE_LABEL = { all: '', first: ' · first author', senior: ' · last author', middle: ' · middle author' };
   let _paperRoleFilter = 'all';
 
   function fmtNum(n) {
@@ -114,7 +114,7 @@ RKG.dashboard = (function() {
     // Journal table column sort
     $$('#journals-thead th[data-sort]').forEach(th => {
       th.style.cursor = 'pointer';
-      th.title = '클릭하여 정렬';
+      th.title = 'Click to sort';
       th.addEventListener('click', () => {
         const col = th.dataset.sort;
         if (_journalSort.col === col) {
@@ -130,7 +130,7 @@ RKG.dashboard = (function() {
     // Paper table: year / cites column sort
     $$('#papers-thead th[data-sort]').forEach(th => {
       th.style.cursor = 'pointer';
-      th.title = '클릭하여 정렬';
+      th.title = 'Click to sort';
       th.addEventListener('click', () => {
         const col = th.dataset.sort;
         if (_paperSort.col === col) {
@@ -278,7 +278,7 @@ RKG.dashboard = (function() {
         </td>
         <td class="text-right mono">${r.h_index != null ? r.h_index : '—'}</td>
       </tr>
-    `).join('') || `<tr><td colspan="5" class="text-center text-muted py-6">데이터 없음</td></tr>`;
+    `).join('') || `<tr><td colspan="5" class="text-center text-muted py-6">No data</td></tr>`;
   }
 
   function _renderPapers(works) {
@@ -312,19 +312,29 @@ RKG.dashboard = (function() {
     $('#papers-tbody').innerHTML = sorted.slice(0, limit).map(w => {
       const role = RKG.state.getAuthorshipRole(w);
       const journal = w.primary_location && w.primary_location.source && w.primary_location.source.display_name || '';
-      const url = w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}` : (w.id || '#');
+      const url = w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}`
+        : (w._pmid ? `https://pubmed.ncbi.nlm.nih.gov/${w._pmid}/` : (w.id || '#'));
       const rolePill = {
-        first: '<span class="pill pill-first">제1</span>',
-        senior: '<span class="pill pill-senior">교신</span>',
-        middle: '<span class="pill pill-middle">중간</span>',
+        first: '<span class="pill pill-first">First</span>',
+        senior: '<span class="pill pill-senior">Last</span>',
+        middle: '<span class="pill pill-middle">Middle</span>',
         none: '',
       }[role] || '';
+      // Provenance badges from the 3-stage pipeline (absent on pre-pipeline data)
+      const src = w._sources || {};
+      const meshTip = (w.mesh && w.mesh.length)
+        ? `MeSH: ${w.mesh.slice(0, 8).join(', ').replace(/"/g, '')}` : 'Verified on PubMed';
+      const badges = [
+        src.orcid ? '<span class="src-badge" title="Listed in ORCID registry">O</span>' : '',
+        src.pubmed ? `<span class="src-badge" title="${meshTip}">P</span>` : '',
+        src.openalex === false ? '<span class="src-badge src-badge-warn" title="Not in OpenAlex — no citation/topic data; excluded from charts">!</span>' : '',
+      ].join('');
       return `
         <tr>
           <td class="mono">${w.publication_year || '—'}</td>
           <td>${rolePill}</td>
           <td>
-            <a href="${url}" target="_blank" class="font-medium hover:underline">${w.title || '(제목 없음)'}</a>
+            <a href="${url}" target="_blank" class="font-medium hover:underline">${w.title || '(untitled)'}</a>${badges}
             ${journal ? `<div class="text-xs text-muted mt-0.5 journal-name">${journal}</div>` : ''}
           </td>
           <td class="text-right mono">${w.cited_by_count || 0}</td>
@@ -332,7 +342,7 @@ RKG.dashboard = (function() {
       `;
     }).join('');
     if (sorted.length > limit) {
-      $('#papers-tbody').innerHTML += `<tr><td colspan="4" class="text-center text-muted py-3 text-xs">상위 ${limit}편만 표시 (전체 ${sorted.length}편)</td></tr>`;
+      $('#papers-tbody').innerHTML += `<tr><td colspan="4" class="text-center text-muted py-3 text-xs">Showing top ${limit} of ${sorted.length} papers</td></tr>`;
     }
   }
 

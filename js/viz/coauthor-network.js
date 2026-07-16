@@ -203,7 +203,7 @@ RKG.coauthorNetwork = (function() {
       _gLabels.append('text')
         .attr('x', W / 2).attr('y', H / 2).attr('text-anchor', 'middle')
         .attr('fill', '#6E6E73').attr('font-size', 14)
-        .text('표시할 공저자가 없습니다 (최소 공저 횟수를 줄여보세요)');
+        .text('No co-authors to display (try lowering the minimum joint papers)');
       return;
     }
 
@@ -246,7 +246,7 @@ RKG.coauthorNetwork = (function() {
           d.fx = null; d.fy = null;
         }));
 
-    nodeSel.append('title').text(d => `${d.name}\n${d.inst || ''}\n공저 ${d.count}회${d.primaryTopic ? '\n주제: ' + d.primaryTopic : ''}`);
+    nodeSel.append('title').text(d => `${d.name}\n${d.inst || ''}\n${d.count} joint papers${d.primaryTopic ? '\nTopic: ' + d.primaryTopic : ''}`);
 
     const labelSel = _gLabels.selectAll('text')
       .data(nodes).enter().append('text')
@@ -341,15 +341,15 @@ RKG.coauthorNetwork = (function() {
           <button data-close-sidebar style="background:none; border:none; cursor:pointer; color:var(--ink-muted); font-size:18px; line-height:1; flex-shrink:0; padding:0 2px;">&times;</button>
         </div>
         ${node.inst ? `<p style="font-size:11px; color:var(--ink-muted); margin-bottom:4px; line-height:1.4;">${node.inst}</p>` : ''}
-        <p style="font-size:11px; color:var(--ink-muted);">본인과 공저 <strong style="color:var(--ink);">${node.count}회</strong></p>
+        <p style="font-size:11px; color:var(--ink-muted);"><strong style="color:var(--ink);">${node.count}</strong> joint papers with the focal author</p>
       </div>
       <div style="padding:10px 14px;">
-        <p style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-muted); margin-bottom:8px;">함께 공저한 연구자</p>
+        <p style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-muted); margin-bottom:8px;">Shared co-authors</p>
         ${connected.length ? connected.map((c, i) => `
           <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-top:1px solid var(--rule);">
             <span style="font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:152px;" title="${c.name}">${i + 1}. ${c.name}</span>
             <span style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--ink-muted); flex-shrink:0; margin-left:4px;">${c.count}</span>
-          </div>`).join('') : '<p style="font-size:11px; color:var(--ink-muted);">없음</p>'}
+          </div>`).join('') : '<p style="font-size:11px; color:var(--ink-muted);">None</p>'}
       </div>`;
 
     el.querySelector('[data-close-sidebar]').addEventListener('click', () => {

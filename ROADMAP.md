@@ -35,12 +35,15 @@ Reference: `reference/mvp-v1.html`
 
 ## Phase 4 — Data quality & enrichment
 
-- [ ] `data/jcr-if.json` — manual ISSN→IF lookup for ~30 major radiology journals
-- [ ] Use JCR IF when available, fallback to OpenAlex 2yr_mean_citedness
-- [ ] PubMed E-utilities integration for MeSH terms
-- [ ] Show MeSH-based topic classification alongside OpenAlex topics
+- [x] JCR ISSN→IF lookup (`data/jcr-if.js`), fallback to OpenAlex 2yr_mean_citedness
 - [x] Author ID consolidation UI (merge duplicate Korean author IDs)
 - [x] ORCID-first search option (skip name disambiguation)
+- [x] **3-stage works retrieval pipeline** (design in CLAUDE.md § "3-stage works retrieval pipeline"):
+  - [x] Stage 1 — ORCID registry (`pub.orcid.org/v3.0/{id}/works`): author-curated DOI/PMID spine
+  - [x] Stage 2 — OpenAlex: current author.id fetch + `author.orcid` filter + DOI-batch hydration of ORCID-only works
+  - [x] Stage 3 — PubMed E-utilities: ORCID/DOI-keyed PMID lookup + MeSH enrichment (no name-only search)
+  - [x] Merge by DOI → PMID → title+year; per-work `_sources` provenance + source badges in paper table
+- [ ] Show MeSH-based topic classification alongside OpenAlex topics
 
 ## Phase 5 — Export & sharing
 

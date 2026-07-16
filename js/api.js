@@ -23,7 +23,7 @@ RKG.api = (function() {
     const clean = (orcid || '').trim().replace(/^https?:\/\/orcid\.org\//, '');
     if (!clean) return '';
     if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/i.test(clean)) {
-      throw new Error('ORCID 형식이 올바르지 않습니다 (예: 0000-0002-9574-5069)');
+      throw new Error('Invalid ORCID format (e.g. 0000-0002-9574-5069)');
     }
     return clean;
   }
@@ -405,7 +405,7 @@ RKG.api = (function() {
     criteria.specTokens = _tokens(criteria.specialty);
 
     if (!criteria.orcid && !criteria.name && !criteria.institution && !criteria.specialty) {
-      throw new Error('저자 이름, ORCID, 소속, 전문 분야 중 하나 이상을 입력하세요.');
+      throw new Error('Enter at least one of: author name, ORCID, institution, or specialty.');
     }
 
     const resolvedInst = await _resolveInstitution(criteria.institution);
@@ -435,19 +435,83 @@ RKG.api = (function() {
     'authorships', 'topics', 'concepts',
   ].join(',');
 
-  async function fetchAllWorks(authorId, onProgress) {
+  async function _fetchWorksPaged(filter, onProgress) {
     const works = [];
     let cursor = '*';
     let safety = 0;
     while (cursor && safety < 100) {
       const data = await _fetch(
-        `/works?filter=author.id:${authorId}&per-page=200&cursor=${encodeURIComponent(cursor)}&select=${WORK_SELECT}`
+        `/works?filter=${filter}&per-page=200&cursor=${encodeURIComponent(cursor)}&select=${WORK_SELECT}`
       );
       works.push(...data.results);
       if (onProgress) onProgress(works.length);
       cursor = data.meta && data.meta.next_cursor;
       if (!cursor) break;
       safety++;
+    }
+    return works;
+  }
+
+  async function fetchAllWorks(authorId, onProgress) {
+    return _fetchWorksPaged(`author.id:${authorId}`, onProgress);
+  }
+
+  // Works carrying this ORCID — catches papers under split author IDs
+  // the user didn't select in the candidate picker.
+  async function fetchWorksByOrcid(orcid, onProgress) {
+    const clean = _normalizeOrcid(orcid);
+    if (!clean) return [];
+    return _fetchWorksPaged(`author.orcid:${clean}`, onProgress);
+  }
+
+  // Lowercase bare DOI ("10.xxxx/..."), or null.
+  function normalizeDoi(doi) {
+    const clean = (doi || '').toLowerCase().trim()
+      .replace(/^https?:\/\/(dx\.)?doi\.org\//, '')
+      .replace(/^doi:/, '');
+    return clean.startsWith('10.') ? clean : null;
+  }
+
+  // Stage 1 — ORCID public registry: the author-curated works list.
+  // Returns [{doi, pmid, title, year}]; any field may be null.
+  async function fetchOrcidWorks(orcid) {
+    const clean = _normalizeOrcid(orcid);
+    if (!clean) return [];
+    const res = await fetch(`https://pub.orcid.org/v3.0/${clean}/works`, {
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!res.ok) throw new Error(`ORCID ${res.status}`);
+    const data = await res.json();
+    return (data.group || []).map(group => {
+      const extIds = (group['external-ids'] && group['external-ids']['external-id']) || [];
+      let doi = null, pmid = null;
+      for (const e of extIds) {
+        const type = (e['external-id-type'] || '').toLowerCase();
+        const val = (e['external-id-value'] || '').trim();
+        if (type === 'doi' && !doi) doi = normalizeDoi(val);
+        if (type === 'pmid' && !pmid && /^\d+$/.test(val)) pmid = val;
+      }
+      const s = (group['work-summary'] || [])[0] || {};
+      const title = s.title && s.title.title && s.title.title.value || null;
+      const year = s['publication-date'] && s['publication-date'].year
+        ? +s['publication-date'].year.value : null;
+      return { doi, pmid, title, year };
+    });
+  }
+
+  // Hydrate specific DOIs from OpenAlex (≤50 per filter call).
+  // DOIs containing ',' or '|' are skipped — they'd corrupt the filter syntax.
+  async function fetchWorksByDois(dois) {
+    const clean = [...new Set((dois || []).map(normalizeDoi).filter(d => d && !/[,|]/.test(d)))];
+    const works = [];
+    for (let i = 0; i < clean.length; i += 50) {
+      const chunk = clean.slice(i, i + 50);
+      try {
+        const data = await _fetch(`/works?filter=doi:${chunk.join('|')}&per-page=50&select=${WORK_SELECT}`);
+        works.push(...data.results);
+      } catch (e) {
+        console.warn('DOI batch hydration failed', e);
+      }
     }
     return works;
   }
@@ -503,7 +567,7 @@ RKG.api = (function() {
   async function searchByOrcid(orcid) {
     const clean = orcid.trim().replace(/^https?:\/\/orcid\.org\//, '');
     if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/i.test(clean)) {
-      throw new Error('ORCID 형식이 올바르지 않습니다 (예: 0000-0002-9574-5069)');
+      throw new Error('Invalid ORCID format (e.g. 0000-0002-9574-5069)');
     }
     const data = await _fetch(`/authors?filter=orcid:${encodeURIComponent(clean)}&per-page=5`);
     return data.results.map(a => {
@@ -513,5 +577,8 @@ RKG.api = (function() {
     });
   }
 
-  return { searchAuthors, searchByOrcid, fetchAllWorks, fetchSourceStats, filterWorksBySearchCriteria };
+  return {
+    searchAuthors, searchByOrcid, fetchAllWorks, fetchSourceStats, filterWorksBySearchCriteria,
+    fetchOrcidWorks, fetchWorksByOrcid, fetchWorksByDois, normalizeDoi,
+  };
 })();

@@ -33,7 +33,7 @@ canvas {
 
 /* Data display text — neutralize body's font-feature-settings and use Arial. */
 /* Targets: journals table, papers table, streamgraph & dot-plot containers, */
-/* co-author network SVG labels. UI chrome (.display headings, inputs)은 기존 폰트 유지. */
+/* co-author network SVG labels. UI chrome (.display headings, inputs) keeps its original font. */
 table.kg-table td,
 table.kg-table th,
 #streamgraph-container,
@@ -115,6 +115,15 @@ table.kg-table tbody tr:hover { background: rgba(0,0,0,0.015); }
 .pill-first { background: rgba(88,86,214,0.12); color: #4644B8; }
 .pill-senior { background: rgba(0,113,227,0.12); color: #0064C8; }
 .pill-middle { background: rgba(110,110,115,0.12); color: var(--ink-muted); }
+
+/* Works pipeline provenance badges (O = ORCID, P = PubMed/MeSH, ! = not in OpenAlex) */
+.src-badge {
+  display: inline-block; margin-left: 0.3rem; padding: 0 0.3rem;
+  border-radius: 4px; font-size: 0.6rem; font-weight: 600; line-height: 1.1rem;
+  vertical-align: 1px; cursor: help;
+  background: rgba(52,199,89,0.14); color: #1E7A3C;
+}
+.src-badge-warn { background: rgba(255,149,0,0.16); color: #B25E00; }
 
 input[type="range"] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--rule); border-radius: 2px; }
 input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: var(--accent); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg); }
