@@ -11,7 +11,7 @@ Target user: academic researchers (initially: radiology professors). Use case: c
 - **No build step.** Vanilla HTML/CSS/JS. CDN-loaded libraries only.
 - **No backend.** All data via public APIs (OpenAlex; future: PubMed).
 - **Works from `file://` (double-click open).** Use script tags with global namespace, NOT ES modules — `type="module"` breaks under file://.
-- Korean UI primary, English technical labels acceptable.
+- English-only UI (switched from Korean 2026-07; user-facing strings, tooltips, and status messages must be English).
 - All modules attach to `window.RKG` namespace.
 
 ## Data sources
@@ -38,9 +38,49 @@ ORCID-first: 검색 폼의 ORCID 필드 사용 시 `/authors?filter=orcid:{}` �
 
 Multi-ID merge: OpenAlex가 한국인 이름의 같은 사람을 여러 ID로 split하는 경우가 잦음. 후보 picker에서 체크박스로 여러 ID 선택 후 병합. 병합된 author는 `_mergedIds` 배열을 가지며, 모든 모듈에서 `author.id` 단일 비교 대신 `focalIds = author._mergedIds || [author.id]` 패턴 사용 (state.js, dashboard.js, coauthor-network.js). works 로딩 시 각 ID에 fetchAllWorks 호출 후 DOI/id 기준 중복 제거.
 
+## 3-stage works retrieval pipeline (IMPLEMENTED)
+
+Author identification (name search → candidate picker) stays as-is. After the user selects/merges an author, publication retrieval is a 3-stage cascade orchestrated by `_loadWorksAndActivate` in `js/search.js`. Each stage is non-fatal: on failure, warn and continue with what earlier stages produced. OpenAlex remains the required core; ORCID and PubMed degrade gracefully when unavailable.
+
+### Stage 1 — ORCID registry (identity spine)
+- Runs only if the selected author has an `orcid` (from OpenAlex record or user input). No ORCID → skip.
+- `GET https://pub.orcid.org/v3.0/{orcid}/works` with `Accept: application/json`. CORS-enabled, keyless, works from file://.
+- Extract per work-summary: DOI, PMID, title, year. This is the author-curated canonical list — highest precision, and catches papers OpenAlex split across IDs the user didn't merge.
+
+### Stage 2 — OpenAlex (metadata engine)
+- Current behavior: `fetchAllWorks(id)` per merged ID (cursor pagination).
+- Add: `/works?filter=author.orcid:{orcid}` pass to catch works under split IDs not selected in the picker.
+- Hydrate ORCID-only DOIs missing from the above: batch `/works?filter=doi:{doi1|doi2|...}` (≤50 per call).
+- Provides citations, topics, authorships, journal → IF. This stage's metadata powers all visualizations.
+
+### Stage 3 — PubMed E-utilities (MeSH enrichment + Medline recall)
+- **Never name-only search** — disambiguation risk. Keyed only on ORCID (`esearch.fcgi?db=pubmed&term={orcid}[auid]`) or DOIs from stages 1–2 (`{doi}[doi]`).
+- `efetch.fcgi?db=pubmed&retmode=xml` in batches (~200 PMIDs) → MeSH headings, publication types. Parse with DOMParser.
+- Throttle ≤3 req/s (keyless limit). CORS-friendly.
+- Adds `work.mesh = [...]`; Medline-indexed papers absent from OpenAlex get a minimal hydrated record.
+
+### Merge & provenance
+- Dedupe key priority: normalized DOI (lowercase, strip `https://doi.org/`) → PMID → title+year fuzzy match.
+- Each work carries `_sources: {orcid, openalex, pubmed}` booleans and `_pmid` when known.
+- Works lacking OpenAlex metadata (no citations/topics/journal) appear in the paper table with a source badge but are excluded (or grayed) in visualizations that need those dimensions.
+- Loading UI shows 3-step progress (1/3 ORCID → 2/3 OpenAlex → 3/3 PubMed).
+
+### Implementation map
+- `js/api.js`: `fetchOrcidWorks(orcid)`, `fetchWorksByOrcid(orcid)`, `fetchWorksByDois(dois)`, `normalizeDoi(doi)`
+- `js/pubmed.js`: `pmidsByOrcid`, `pmidsByDois`, `fetchArticles(pmids)` (efetch XML → {doi, mesh, title, year, journal})
+- `js/search.js`: `_loadWorksAndActivate` orchestrates; `_enrichFromPubmed` is stage 3
+- `js/dashboard.js`: source badges (O/P/!) in paper table; DOI-less Medline papers link to PubMed
+
+### Implementation quirks
+- The OpenAlex ORCID pass can surface works filed under split author IDs the user didn't merge. Those IDs are auto-folded into `author._mergedIds` (search.js) so role detection, the coauthor network's no-ego invariant, and criteria filtering treat them as the focal author.
+- Medline-only records (found via the author's own ORCID) **bypass** `filterWorksBySearchCriteria` — they're author-curated, so institution/specialty criteria don't apply. They carry `primary_location.source.id = null`, which every viz module already skips; they appear only in the paper table.
+- ORCID registry entries without DOI and PMID can't be matched — silently dropped (title-only matching happens against PubMed articles, not ORCID entries).
+- MeSH may be empty for recent papers (not yet indexed) — `mesh` is only set when non-empty.
+
 ## Impact factor handling
 
-- **JCR 2026 (2025 JIF values) is the PRIMARY source.** `data/jcr-if.js` is an ISSN → IF lookup (~13.5k entries) extracted from the JCR 2026 report (`data/JCR2026_202606.pdf`) by `extract_jcr.py`, loaded as a `<script>` that assigns `RKG.jcrData`. Look up a journal's IF by its ISSN(s) against this table.
+- **JCR JIF is the PRIMARY source.** `data/jcr-if.js` is an ISSN → IF lookup (~13.3k entries) extracted from the yearly JCR category-ranking PDF by `extract_jcr.py`, loaded as a `<script>` that assigns `RKG.jcrData`. Current local build: JCR 2026 release (2025 JIF values) from `~/Downloads/JCR2026_202606.pdf`. Look up a journal's IF by its ISSN(s) against this table.
+- **`data/` is gitignored** (Clarivate-licensed data, local-only — never commit). A fresh clone has no `data/` directory, so the app falls back to OpenAlex everywhere until you regenerate it: `python extract_jcr.py <JCR pdf>` (creates `data/jcr-if.json` + `data/jcr-if.js`). If IF values suddenly drop to ~5 for top journals, the JCR file is missing — regenerate it.
 - **OpenAlex `summary_stats.2yr_mean_citedness` is the FALLBACK** when an ISSN isn't in the JCR table — same formula as JCR IF (citations in current year to articles published in previous 2 years), different citation database. UI marks these fallback values with an "OA" badge; the resolved value carries an `if_source` of `'JCR'` or `'OA'`.
 - Clarivate still doesn't expose IF via API (scraping is a TOS violation) — hence the local `jcr-if.js`, regenerated yearly from the new JCR PDF: `python extract_jcr.py <path-to-JCR-pdf>` rewrites both `data/jcr-if.json` (rich metadata: name, IF, rank, category) and `data/jcr-if.js` (ISSN → IF only).
 
@@ -125,7 +165,7 @@ reference/
 - Async/await for all API calls. No callback chains.
 - State mutations only through `RKG.state` setters. Direct mutation forbidden.
 - DOM access scoped to relevant module — bubble-timeline.js doesn't touch network DOM, etc.
-- Korean UI text in markup; English in code/identifiers/comments.
+- English everywhere: UI text, code, identifiers, comments. (Keep the `가-힣` character classes in `search.js` `_normTitle` and `bubble-timeline.js` journal-name cleanup — they process Korean paper/journal data, not UI.)
 - Polite OpenAlex pool: `?mailto=...` query param on EVERY request (configured in api.js).
 - Numeric formatting: round before displaying. Citation counts as integers, IF to 2 decimals.
 - Error handling: API failures show user-facing status message, never throw to console.

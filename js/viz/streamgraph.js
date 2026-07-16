@@ -91,7 +91,7 @@ RKG.streamgraph = (function() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         height: '100%', fontSize: '13px', color: 'var(--ink-muted)',
       });
-      div.textContent = '주제 데이터 없음 (연도 범위 또는 필터를 확인하세요)';
+      div.textContent = 'No topic data (check the year range or filters)';
       _container.appendChild(div);
       return;
     }
@@ -227,10 +227,10 @@ RKG.streamgraph = (function() {
         const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${topicColor.get(d.key)};margin-right:6px;vertical-align:-1px;"></span>`;
 
         _tooltip.innerHTML = `
-          <div style="font-weight:600;font-size:13px;margin-bottom:5px;">${year}년</div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:5px;">${year}</div>
           <div style="display:flex;align-items:center;">${dot}<span style="font-size:12px;">${d.key.length > 30 ? d.key.slice(0, 28) + '…' : d.key}</span></div>
-          <div style="font-size:12px;color:#6E6E73;margin-top:3px;">${cnt}편 · 전체의 ${pct}%</div>
-          <div style="font-size:11px;color:#86868B;margin-top:2px;">총 ${total}편 (해당 연도)</div>
+          <div style="font-size:12px;color:#6E6E73;margin-top:3px;">${cnt} papers · ${pct}% of year</div>
+          <div style="font-size:11px;color:#86868B;margin-top:2px;">${total} papers total that year</div>
         `;
         _tooltip.style.display = 'block';
 

@@ -132,19 +132,19 @@ RKG.bubbleTimeline = (function() {
     const roleHTML = `
       <span class="flex items-center gap-1.5 ml-3 pl-3 border-l rule">
         <span style="width:12px;height:12px;border-radius:50%;border:2.5px solid #0071E3;background:rgba(0,113,227,0.2);display:inline-block;box-sizing:border-box;flex-shrink:0;"></span>
-        <span class="text-muted">제1저자</span>
+        <span class="text-muted">First author</span>
       </span>
       <span class="flex items-center gap-1.5">
         <svg width="13" height="13" viewBox="0 0 13 13" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
           <polygon points="6.5,0.5 7.9,4.4 12.2,4.8 9.1,7.5 10.1,11.8 6.5,9.5 2.9,11.8 3.9,7.5 0.8,4.8 5.1,4.4" fill="#0071E3"/>
         </svg>
-        <span class="text-muted">교신저자</span>
+        <span class="text-muted">Last author</span>
       </span>
       <span class="flex items-center gap-1.5">
         <svg width="11" height="11" viewBox="0 0 11 11" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
           <polygon points="5.5,0.5 10.5,10.5 0.5,10.5" fill="rgba(0,113,227,0.45)" stroke="rgba(0,113,227,0.65)" stroke-width="0.8"/>
         </svg>
-        <span class="text-muted">중간저자</span>
+        <span class="text-muted">Middle author</span>
       </span>
     `;
 
@@ -197,7 +197,7 @@ RKG.bubbleTimeline = (function() {
     if (!p || !p._work) return;
     const w = p._work;
     const journal = (_journalsList[p.y] || {}).name || '';
-    const roleLabel = { first: '제1저자', senior: '교신/마지막 저자', middle: '중간 저자' }[p._role] || '';
+    const roleLabel = { first: 'First author', senior: 'Last author', middle: 'Middle author' }[p._role] || '';
     const title = (w.title || 'Untitled').slice(0, 100);
     const doi = w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}` : null;
 
@@ -209,8 +209,8 @@ RKG.bubbleTimeline = (function() {
           : `<span style="${AF}">${title}</span>`}
       </div>
       <div style="${AF}color:#515154;margin-bottom:3px;">${journal} · ${p.x}</div>
-      <div style="${AF}color:#515154;">${w.cited_by_count || 0} 인용 · ${roleLabel}${p._topic ? ' · ' + p._topic : ''}</div>
-      ${doi ? `<div style="${AF}color:#AEAEB2;font-size:10px;margin-top:4px;">↗ 논문 링크 클릭 가능</div>` : ''}
+      <div style="${AF}color:#515154;">${w.cited_by_count || 0} citations · ${roleLabel}${p._topic ? ' · ' + p._topic : ''}</div>
+      ${doi ? `<div style="${AF}color:#AEAEB2;font-size:10px;margin-top:4px;">↗ Click to open paper</div>` : ''}
     `;
 
     el.style.display = 'block';
@@ -308,7 +308,7 @@ RKG.bubbleTimeline = (function() {
             grid: { color: 'rgba(0,0,0,0.04)' },
           },
           y: {
-            // IF 높은 저널(index 0)을 위에 표시 (Chart.js 기본은 0이 아래라 reverse 필요)
+            // Show highest-IF journal (index 0) at the top (Chart.js default puts 0 at the bottom)
             reverse: true,
             min: -0.7, max: Math.max(_journalsList.length - 0.2, 0.5),
             ticks: {

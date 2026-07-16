@@ -33,7 +33,7 @@ RKG.bubble3d = (function() {
     _container = document.getElementById('bubble-3d-container');
     if (!_container) return;
     if (!window.THREE || !THREE.OrbitControls) {
-      _container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:13px;color:#6E6E73;">Three.js를 불러올 수 없습니다 (네트워크 확인).</div>';
+      _container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:13px;color:#6E6E73;">Failed to load Three.js (check network).</div>';
       return;
     }
 
@@ -83,7 +83,7 @@ RKG.bubble3d = (function() {
     };
     _controls.enableDamping = true;
     _controls.dampingFactor = 0.08;
-    _controls.zoomSpeed = 0.4;  // 휠 줌 민감도 완화 (기본 1.0 → 노치당 5%에서 ~2%로)
+    _controls.zoomSpeed = 0.4;  // soften wheel-zoom sensitivity (default 1.0 = ~5% per notch → ~2%)
     _controls.screenSpacePanning = true;
     _controls.target.set(0, 3, 4);
     _controls.update();
@@ -123,17 +123,17 @@ RKG.bubble3d = (function() {
 
     const xLbl = document.createElement('div');
     xLbl.style.cssText = base + 'bottom:14px;right:14px;';
-    xLbl.textContent = 'X: 연도';
+    xLbl.textContent = 'X: Year';
     _container.appendChild(xLbl);
 
     const yLbl = document.createElement('div');
     yLbl.style.cssText = base + 'top:50%;left:6px;transform:translateY(-50%) rotate(-90deg);transform-origin:center center;';
-    yLbl.textContent = 'Y: 저널 IF';
+    yLbl.textContent = 'Y: Journal IF';
     _container.appendChild(yLbl);
 
     const zLbl = document.createElement('div');
     zLbl.style.cssText = base + 'bottom:14px;left:50%;transform:translateX(-50%);';
-    zLbl.textContent = 'Z: 인용 수 (√)';
+    zLbl.textContent = 'Z: Citations (√)';
     _container.appendChild(zLbl);
   }
 
@@ -252,11 +252,11 @@ RKG.bubble3d = (function() {
       _hovered = hits[0].object;
       const m = _hovered;
       const w = m._work;
-      const roleLabel = { first: '제1저자', senior: '교신/마지막', middle: '중간저자' }[m._role] || '';
+      const roleLabel = { first: 'First author', senior: 'Last author', middle: 'Middle author' }[m._role] || '';
       _tooltip.innerHTML = [
         `<strong>${(w.title || '').length > 72 ? w.title.slice(0, 70) + '…' : (w.title || '')}</strong>`,
         [m._journal, w.publication_year].filter(Boolean).join(' · '),
-        [`${w.cited_by_count || 0} 인용`, roleLabel, m._ifVal ? `IF ${m._ifVal.toFixed(1)}` : ''].filter(Boolean).join(' · '),
+        [`${w.cited_by_count || 0} citations`, roleLabel, m._ifVal ? `IF ${m._ifVal.toFixed(1)}` : ''].filter(Boolean).join(' · '),
       ].join('<br>');
       _tooltip.style.display = 'block';
       const cr = _container.getBoundingClientRect();
