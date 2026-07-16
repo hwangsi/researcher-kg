@@ -268,7 +268,10 @@
 </div>
 
 <!-- Module load order matters: state → api/pubmed → search/dashboard → viz -->
+<!-- Full JCR table (local-only, gitignored; 404s on the public build) -->
 <script src="data/jcr-if.js"></script>
+<!-- Committed public subset — assigns RKG.jcrData only if the full table didn't load -->
+<script src="data/jcr-if-public.js"></script>
 <script src="js/state.js"></script>
 <script src="js/api.js"></script>
 <script src="js/pubmed.js"></script>
