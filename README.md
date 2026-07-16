@@ -1,68 +1,111 @@
 # Researcher Knowledge Graph
 
-연구자 한 명을 검색해서 그 사람의 출판 이력·공저자 관계·연구 주제 분포·저널 임팩트를 시각화하는 단일 페이지 웹앱.
+A single-page web app that visualizes one researcher's publication career: papers over time, co-author structure, topic evolution, and journal impact. No build tools, no backend, no API keys.
 
-**데이터 소스:** JIF 2025 및 [OpenAlex](https://openalex.org) — 빌드 도구 없음, 백엔드 없음, API 키 없음.
+**Live:** https://hwangsi.github.io/researcher-kg/
 
-## 바로 사용하기
+## Quick start
 
-### 온라인 (GitHub Pages)
-**https://hwangsi.github.io/researcher-kg/**
+### Online (GitHub Pages)
+Open https://hwangsi.github.io/researcher-kg/ and search for an author.
 
-### 로컬 개발
+### Local
 ```bash
-# index.html 더블클릭, 또는:
+# Double-click index.html, or:
 python3 -m http.server 8000
-# 브라우저에서 http://localhost:8000
+# then open http://localhost:8000
 ```
 
-## 주요 기능
+## Features
 
-- **저자 검색** — 이름 + 소속 기관 + 전공으로 동명이인 disambiguation
-- **ORCID 직접 조회** — 가장 정확한 방법
-- **다중 ID 병합** — OpenAlex가 같은 사람을 여러 ID로 split하는 경우 체크박스로 합산
-- **Bubble Timeline** — 연도 × 저널 × 인용 × 주제 + 저자 역할(1저자/교신/중간) 인코딩
-- **3D Timeline** — Three.js, X: 연도 / Y: IF / Z: 인용 수
-- **Co-author Network** — D3 force-directed, 본인 제외 공저자 co-occurrence
-- **Topic Streamgraph** — 연구 주제의 연도별 변화 흐름
-- **Co-author Dot Plot** — 공저자 × 연도 산점도
-- **저널 표** — JCR 2026 IF (fallback: OpenAlex 2yr citedness)
-- **논문 목록** — 역할 필터, DOI 링크
+- **Author search** — name + institution + specialty keywords for disambiguation of common names
+- **ORCID lookup** — the most accurate way to identify an author
+- **Multi-ID merge** — OpenAlex sometimes splits one person across several IDs; merge them with checkboxes (split IDs discovered via ORCID are folded in automatically)
+- **3-stage works retrieval** — ORCID registry → OpenAlex → PubMed (see below)
+- **Bubble Timeline** — year × journal × citations × topic, with authorship role (first / last / middle) encoded on each bubble
+- **3D Timeline** — Three.js; X: year, Y: journal IF, Z: citations
+- **Co-author Network** — D3 force-directed co-occurrence graph (focal author excluded by design)
+- **Topic Streamgraph** — how research focus shifted over the years
+- **Co-author Dot Plot** — co-author × year scatter, long-term vs one-shot collaborations
+- **Journal table** — JCR Impact Factor with OpenAlex fallback (details below)
+- **Paper list** — role filter, DOI/PubMed links, per-paper source badges (O = ORCID, P = PubMed/MeSH, ! = not in OpenAlex)
 
-## 기술 스택
+## How works are retrieved (3-stage pipeline)
 
-| 라이브러리 | 용도 |
+1. **ORCID registry** (`pub.orcid.org`) — if the selected author has an ORCID, their self-curated publication list (DOIs/PMIDs) is fetched first. Highest precision; also catches papers filed under OpenAlex IDs the user didn't merge.
+2. **OpenAlex** — the metadata core: citations, topics, authorship order, journals. Combines per-ID fetches, an `author.orcid` filter pass, and batch DOI hydration of ORCID-only papers.
+3. **PubMed E-utilities** — keyed only on ORCID or DOIs (never name search, to avoid same-name contamination). Adds MeSH terms and recovers Medline-indexed papers missing from OpenAlex.
+
+Each stage fails soft: if ORCID or PubMed is unavailable, the app continues with what it has. OpenAlex is the only required source.
+
+## Impact Factor data
+
+IF values come from two tiers, resolved per journal at runtime:
+
+| Tier | Source | Coverage | UI marker |
+|---|---|---|---|
+| 1 | **JCR JIF** (Journal Citation Reports, Clarivate) | See below | plain value |
+| 2 | **OpenAlex 2-year mean citedness** | Everything else | "OA" badge |
+
+The OpenAlex fallback uses the same formula as the JIF (citations this year to items published in the previous two years) but a different citation database, so values are similar-but-not-identical to JCR.
+
+### Why two JCR files?
+
+Clarivate does not expose the JIF via any API, and the full JCR dataset is licensed — republishing all ~13,500 values would amount to redistributing it. So:
+
+- **`data/jcr-if.js` / `data/jcr-if.json` (gitignored, local only)** — the full table, extracted from the yearly JCR report PDF with `extract_jcr.py`. Never committed.
+- **`data/jcr-if-public.js` (committed)** — a small cited subset that the public build ships: the entire *Radiology, Nuclear Medicine & Medical Imaging* category (215 journals) plus ~26 major medical journals (NEJM, Lancet, JAMA, Nature, …), 418 ISSN keys total. Source attribution is in the file header.
+
+`index.html` loads the full local table first (it 404s on the public build), then the public subset, which only assigns itself if nothing loaded. Journals outside the subset show the OpenAlex value with an "OA" badge.
+
+Current data: **JCR 2026 release (2025 JIF values)**.
+
+### Yearly update
+
+```bash
+python extract_jcr.py <path-to-new-JCR-pdf>   # full local table (stays local)
+python build_public_if.py                     # public subset (commit this one)
+```
+
+## Tech stack
+
+| Library | Used for |
 |---|---|
 | Tailwind CDN | UI utility classes |
 | Chart.js | Bubble timeline, dot plot |
 | D3 v7 | Co-author network, streamgraph |
 | Three.js | 3D bubble timeline |
-| OpenAlex API | 논문·저자·저널 데이터 |
+| OpenAlex API | Papers, authors, journals |
+| ORCID Public API | Author-curated publication list |
+| PubMed E-utilities | MeSH terms, Medline recall |
 
-## Impact Factor 데이터
-
-- **1순위: JCR 2026 (2025 JIF)** — `data/jcr-if.js`의 ISSN → IF 조회 테이블 (~13.5k 항목). Clarivate가 IF를 API로 제공하지 않아 JCR 리포트 PDF에서 직접 추출.
-- **2순위(fallback): OpenAlex 2yr mean citedness** — JCR 테이블에 없는 저널에 적용. JCR IF와 같은 공식·다른 인용 DB이며, UI에서 "OA" 배지로 구분.
-- **연간 갱신:** 새 JCR PDF를 받아 `python extract_jcr.py <JCR PDF 경로>` 실행 → `data/jcr-if.json`(저널명·IF·순위·카테고리)과 `data/jcr-if.js`(ISSN → IF)가 재생성됨. 이후 `python build_dist.py`로 단일 파일 배포본 갱신.
-
-## 파일 구조
+## File structure
 
 ```
-index.html           ← 진입점
-researcher-kg.html   ← 단일 파일 배포본 (build_dist.py 산출물)
-build_dist.py        ← CSS/JS 인라인 빌드 스크립트
-extract_jcr.py       ← JCR PDF → jcr-if.json/js 추출 스크립트
+index.html            ← entry point
+researcher-kg.html    ← single-file distributable (built by build_dist.py)
+build_dist.py         ← inlines CSS/JS into the distributable
+extract_jcr.py        ← JCR PDF → full local IF table
+build_public_if.py    ← full table → committed public subset
 css/styles.css
 js/
-  api.js, state.js, search.js, dashboard.js
+  api.js, state.js, search.js, dashboard.js, pubmed.js
   viz/
     bubble-timeline.js, coauthor-network.js
     streamgraph.js, dot-plot.js, bubble-3d.js
 data/
-  jcr-if.js          ← JCR 2026 ISSN → IF 조회 테이블
-  jcr-if.json        ← 동일 데이터 + 저널명·순위·카테고리 메타데이터
-  JCR2026_202606.pdf ← 원본 JCR 2026 리포트
-reference/mvp-v1.html
+  jcr-if-public.js    ← committed IF subset (radiology + major journals)
+  jcr-if.js           ← full ISSN → IF table (gitignored, local only)
+  jcr-if.json         ← full table + name/rank/category (gitignored)
+reference/mvp-v1.html ← original MVP, kept for reference
 ```
 
-`CLAUDE.md` — 설계 결정·제약·관례 (Claude Code 작업 시 필독).
+`CLAUDE.md` documents design decisions, constraints, and conventions.
+
+## Disclaimer
+
+All data is retrieved from public web databases (OpenAlex, ORCID, PubMed) and may be inaccurate or incomplete. Impact Factor values are cited from Journal Citation Reports (Clarivate); see [jcr.clarivate.com](https://jcr.clarivate.com) for the authoritative data.
+
+---
+
+© 2026 Sung Il Hwang, MD, PhD. All rights reserved.
