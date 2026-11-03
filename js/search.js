@@ -269,8 +269,11 @@ RKG.search = (function() {
       }
     };
     const progress = c => showStatus(`${SPIN}[2/3] Loading works from OpenAlex... (${allWorks.length + c}${idList.length > 1 ? `, merging ${idList.length} IDs` : ''})`);
+    let missingWorks = 0;
     for (const id of idList) {
-      addWorks(await RKG.api.fetchAllWorks(id, progress));
+      const works = await RKG.api.fetchAllWorks(id, progress);
+      missingWorks += works._missing;
+      addWorks(works);
     }
     if (orcid) {
       try {
@@ -323,7 +326,11 @@ RKG.search = (function() {
 
     RKG.state.setWorks(finalWorks);
     RKG.state.setSourceStats(stats);
-    hideStatus();
+    if (missingWorks) {
+      showStatus(`OpenAlex lists ${fmtNum(missingWorks)} more works for this author that could not be loaded, so the results below may be incomplete.`, 'error');
+    } else {
+      hideStatus();
+    }
     RKG.dashboard.activate();
   }
 

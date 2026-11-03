@@ -424,31 +424,35 @@ RKG.api = (function() {
     return grouped;
   }
 
-  // Cursor-paginated fetch of all works for an author.
+  // Page-numbered fetch of every work matching a filter.
+  // Not cursor paging: following next_cursor returns 401 without an API key, and a
+  // static app can't keep a key secret. Page numbers work keyless up to 10,000 results.
   // Sort is intentionally omitted — sorting by a non-unique field like publication_year
-  // causes non-deterministic cursor pagination (records skipped at page boundaries).
-  // Default sort (by ID) is stable and ensures complete retrieval.
+  // can move records across page boundaries. The default order was stable in testing.
   // onProgress(count) called each page.
+  // The returned array carries _missing: works in meta.count that weren't received.
   const WORK_SELECT = [
     'id', 'doi', 'title', 'publication_year',
     'cited_by_count', 'primary_location',
     'authorships', 'topics', 'concepts',
   ].join(',');
+  const WORKS_PER_PAGE = 100;  // Supported maximum; OpenAlex has deprecated 200.
+  const MAX_WORKS_PAGES = 100; // page * per-page may not exceed 10,000.
 
   async function _fetchWorksPaged(filter, onProgress) {
-    const works = [];
-    let cursor = '*';
-    let safety = 0;
-    while (cursor && safety < 100) {
+    const byId = new Map();
+    let total = 0;
+    for (let page = 1; page <= MAX_WORKS_PAGES; page++) {
       const data = await _fetch(
-        `/works?filter=${filter}&per-page=200&cursor=${encodeURIComponent(cursor)}&select=${WORK_SELECT}`
+        `/works?filter=${filter}&per-page=${WORKS_PER_PAGE}&page=${page}&select=${WORK_SELECT}`
       );
-      works.push(...data.results);
-      if (onProgress) onProgress(works.length);
-      cursor = data.meta && data.meta.next_cursor;
-      if (!cursor) break;
-      safety++;
+      total = data.meta.count;
+      data.results.forEach(w => byId.set(w.id, w));
+      if (onProgress) onProgress(byId.size);
+      if (data.results.length < WORKS_PER_PAGE || byId.size >= total) break;
     }
+    const works = [...byId.values()];
+    works._missing = Math.max(0, total - works.length);
     return works;
   }
 
