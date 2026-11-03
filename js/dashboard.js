@@ -62,7 +62,10 @@ RKG.dashboard = (function() {
     }
 
     _renderAll();
-    $('#dashboard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // A load warning sits directly above the dashboard; keep it on screen.
+    const status = $('#status');
+    const scrollTarget = status.classList.contains('hidden') ? $('#dashboard') : status;
+    scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function _wireUpControls() {
@@ -108,6 +111,7 @@ RKG.dashboard = (function() {
     $('#reset-btn').addEventListener('click', () => {
       RKG.state.reset();
       $('#dashboard').classList.add('hidden');
+      $('#status').classList.add('hidden');
       $('#author-name').focus();
     });
 

@@ -17,9 +17,9 @@ Target user: academic researchers (initially: radiology professors). Use case: c
 ## Data sources
 
 ### Primary: OpenAlex (https://api.openalex.org)
-- Free, open, no API key. Add `?mailto=YOUR_EMAIL` for polite pool (faster, more reliable).
+- Free, open, and used without an API key. Keyless access covers basic queries and page-numbered paging, but **following `next_cursor` past the first page returns 401**. A static app can't keep a key secret, so don't use cursor paging. Response headers showed a keyless budget of 1000 list calls per day (checked 2026-11). Add `?mailto=YOUR_EMAIL` for polite pool (faster, more reliable).
 - Author search: `/authors?search={name}&per-page=25`
-- All works for an author: `/works?filter=author.id:{id}&cursor=*&per-page=200&sort=publication_year:desc` (use cursor pagination for prolific authors)
+- All works for an author: `/works?filter=author.id:{id}&per-page=100&page={n}` (no `sort`: a non-unique sort key can move records across page boundaries; 100 is the supported `per-page` maximum)
 - Source (journal) details: `/sources?filter=ids.openalex:{id1|id2|...}` (batch up to 50 per call)
 - Works return both `topics` (newer, hierarchical) and `concepts` (older, deprecated). Always check both: `work.topics?.length ? work.topics : work.concepts`.
 
@@ -48,7 +48,7 @@ Author identification (name search → candidate picker) stays as-is. After the 
 - Extract per work-summary: DOI, PMID, title, year. This is the author-curated canonical list — highest precision, and catches papers OpenAlex split across IDs the user didn't merge.
 
 ### Stage 2 — OpenAlex (metadata engine)
-- Current behavior: `fetchAllWorks(id)` per merged ID (cursor pagination).
+- Current behavior: `fetchAllWorks(id)` per merged ID (page-numbered). If `meta.count` exceeds what was received, the dashboard shows a warning instead of silently losing works.
 - Add: `/works?filter=author.orcid:{orcid}` pass to catch works under split IDs not selected in the picker.
 - Hydrate ORCID-only DOIs missing from the above: batch `/works?filter=doi:{doi1|doi2|...}` (≤50 per call).
 - Provides citations, topics, authorships, journal → IF. This stage's metadata powers all visualizations.
@@ -206,7 +206,7 @@ Then assign each node its dominant topic for coloring.
 ## Known issues / quirks
 
 - OpenAlex `cited_by_count` updates daily, not real-time.
-- Very prolific authors (500+ papers) need cursor pagination — never offset.
+- Prolific authors span several pages. Page-numbered paging stops at 10,000 results, so a profile above that (usually a merged-identity error in OpenAlex) loads partially and shows the warning.
 - Korean author names: pre-2018 OpenAlex data may split same person across IDs. Manual ID consolidation may be needed for very senior researchers.
 - Tailwind CDN: warns in dev tools but works fine for static deploy.
 - Force layout is non-deterministic — clusters appear in different positions each render. Acceptable trade-off.

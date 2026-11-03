@@ -4,7 +4,7 @@
 
 - [x] OpenAlex author search with institution filter
 - [x] Candidate picker UI
-- [x] Fetch all works via cursor pagination
+- [x] Fetch all works via keyless page-numbered paging
 - [x] Fetch source stats (IF proxy) in batches
 - [x] Stats cards (papers, citations, h-index, years, coauthors)
 - [x] Year range slider
