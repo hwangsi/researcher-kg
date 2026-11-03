@@ -1,0 +1,3628 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Researcher Knowledge Graph</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>Chart.defaults.font.family = 'Arial, sans-serif';</script>
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<style>
+:root {
+  /* Apple/macOS light theme */
+  --bg: #F5F5F7;
+  --bg-card: #FFFFFF;
+  --ink: #1D1D1F;
+  --ink-muted: #6E6E73;
+  --rule: #D2D2D7;
+  --accent: #0071E3;
+  --accent-soft: #6BB1F0;
+
+  /* Topic colors (used across all viz; validated categorical order) */
+  --topic-1: #0071E3;  /* blue */
+  --topic-2: #248A3D;  /* green */
+  --topic-3: #B25000;  /* orange */
+  --topic-4: #8944AB;  /* purple */
+  --topic-5: #0092A8;  /* teal */
+  --topic-6: #D70015;  /* red */
+  --topic-7: #5856D6;  /* indigo */
+  --topic-8: #C7256E;  /* pink */
+  --topic-other: #86868B; /* gray */
+}
+
+* { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+html, body { background: var(--bg); color: var(--ink); }
+body {
+  font-family: 'Pretendard Variable', Pretendard, system-ui, -apple-system, sans-serif;
+  font-feature-settings: "ss01", "ss02";
+}
+canvas {
+  font-feature-settings: normal;
+  font-variant: normal;
+}
+
+/* Data display text — neutralize body's font-feature-settings and use Arial. */
+/* Targets: journals table, papers table, streamgraph & dot-plot containers, */
+/* co-author network SVG labels. UI chrome (.display headings, inputs) keeps its original font. */
+table.kg-table td,
+table.kg-table th,
+#streamgraph-container,
+#dotplot-container,
+.coauthor-label {
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-feature-settings: normal;
+  font-variant: normal;
+}
+
+.display { font-family: 'Fraunces', 'Pretendard Variable', serif; font-optical-sizing: auto; letter-spacing: -0.02em; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.rule { border-color: var(--rule); }
+.card { background: var(--bg-card); border: 1px solid var(--rule); }
+.accent { color: var(--accent); }
+.text-muted { color: var(--ink-muted); }
+
+.input-field {
+  background: var(--bg-card);
+  border: 1px solid var(--rule);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+  outline: none;
+}
+
+.btn-primary {
+  background: var(--ink);
+  color: var(--bg);
+  transition: opacity 0.15s, transform 0.15s;
+}
+.btn-primary:hover:not(:disabled) { opacity: 0.85; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tab-btn {
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.15s, color 0.15s;
+  color: var(--ink-muted);
+}
+.tab-btn:hover { color: var(--ink); }
+.tab-btn.active { border-color: var(--accent); color: var(--ink); }
+
+.role-btn {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--ink-muted);
+  transition: all 0.15s;
+}
+.role-btn:hover { color: var(--ink); border-color: var(--accent-soft); }
+.role-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+.candidate-card { transition: border-color 0.15s, transform 0.1s; cursor: pointer; }
+.candidate-card:hover { border-color: var(--accent); }
+.candidate-card.selected { border-color: var(--accent); background: rgba(0, 113, 227, 0.04); }
+
+.stat-num { font-family: 'Fraunces', serif; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.loader {
+  width: 16px; height: 16px;
+  border: 2px solid var(--rule);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.deco-line { background: linear-gradient(90deg, var(--ink) 0%, var(--ink) 60%, transparent 100%); height: 1px; }
+
+table.kg-table { border-collapse: collapse; width: 100%; }
+table.kg-table th { text-align: left; font-weight: 500; color: var(--ink-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--rule); }
+table.kg-table td { padding: 0.75rem; border-bottom: 1px solid var(--rule); font-size: 0.875rem; vertical-align: top; }
+table.kg-table tbody tr:hover { background: rgba(0,0,0,0.015); }
+
+.pill { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 500; }
+.pill-accent { background: rgba(0,113,227,0.1); color: #0064C8; }
+.pill-first { background: rgba(88,86,214,0.12); color: #4644B8; }
+.pill-senior { background: rgba(0,113,227,0.12); color: #0064C8; }
+.pill-middle { background: rgba(110,110,115,0.12); color: var(--ink-muted); }
+
+/* Works pipeline provenance badges (O = ORCID, P = PubMed/MeSH, ! = not in OpenAlex) */
+.src-badge {
+  display: inline-block; margin-left: 0.3rem; padding: 0 0.3rem;
+  border-radius: 4px; font-size: 0.6rem; font-weight: 600; line-height: 1.1rem;
+  vertical-align: 1px; cursor: help;
+  background: rgba(52,199,89,0.14); color: #1E7A3C;
+}
+.src-badge-warn { background: rgba(255,149,0,0.16); color: #B25E00; }
+
+input[type="range"] { -webkit-appearance: none; appearance: none; height: 4px; background: var(--rule); border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: var(--accent); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg); }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: var(--accent); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg); }
+
+/* Co-author network specific */
+#network-container svg { width: 100%; height: 100%; cursor: grab; }
+#network-container svg:active { cursor: grabbing; }
+.coauthor-node { cursor: pointer; transition: stroke-width 0.15s, opacity 0.2s; }
+.coauthor-node:hover { stroke-width: 3px; }
+.coauthor-node.selected { stroke: var(--ink); stroke-width: 3px; }
+.coauthor-node.faded { opacity: 0.2; }
+.coauthor-edge { transition: opacity 0.2s; }
+.coauthor-edge.faded { opacity: 0.05; }
+.coauthor-label { font-size: 11px; font-family: 'Pretendard Variable', system-ui, sans-serif; fill: var(--ink); pointer-events: none; transition: opacity 0.2s; }
+
+.journal-name { font-family: Arial, sans-serif !important; }
+
+/* Network legend HTML overlay — force Arial, reset inherited Pretendard feature settings */
+#network-container { isolation: isolate; }
+.network-legend-html,
+.network-legend-html * {
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+  font-feature-settings: normal !important;
+  font-variant: normal !important;
+  -webkit-font-smoothing: auto;
+}
+.coauthor-label.faded { opacity: 0.3; }
+
+/* Status messages */
+.status-info { background: #EAF4FF; color: #0058B9; }
+.status-success { background: #E9F8EE; color: #1D7A35; }
+.status-error { background: #FDECEB; color: #C41E17; }
+
+</style>
+</head>
+<body>
+
+<div class="max-w-[1400px] mx-auto px-6 lg:px-10 py-8">
+
+  <header class="mb-10">
+    <div class="flex items-baseline gap-4 mb-2">
+      <h1 class="display text-4xl font-medium">Researcher</h1>
+      <span class="display text-4xl italic accent">Knowledge Graph</span>
+    </div>
+    <div class="deco-line w-32 mb-3"></div>
+    <p class="text-sm text-muted">Publications · Co-authors · Topics · Journals — via OpenAlex</p>
+    <p class="text-xs text-muted mt-1">Data is retrieved from public web databases and may be inaccurate or incomplete.</p>
+  </header>
+
+  <section id="search-section" class="card rounded-lg p-6 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-4 items-end">
+      <div>
+        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">Author Name</label>
+        <input id="author-name" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="" autocomplete="off">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">Institution Keyword</label>
+        <input id="author-institution" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="" autocomplete="off">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">Specialty Keyword</label>
+        <input id="author-specialty" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm" placeholder="" autocomplete="off">
+      </div>
+      <button id="search-btn" class="btn-primary px-6 py-2.5 rounded text-sm font-medium whitespace-nowrap">
+        <span id="search-btn-text">Search</span>
+      </button>
+    </div>
+    <div class="mt-3 flex items-end gap-6 flex-wrap">
+      <div class="max-w-[260px]">
+        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">ORCID (optional)</label>
+        <input id="author-orcid-input" type="text" class="input-field w-full px-4 py-2.5 rounded text-sm mono" placeholder="0000-0002-..." autocomplete="off">
+      </div>
+      <label class="flex items-center gap-2 cursor-pointer select-none mb-0.5">
+        <input id="korea-only-chk" type="checkbox" class="w-4 h-4 cursor-pointer accent-[#0071E3]">
+        <span class="text-sm">Korean institutions only</span>
+      </label>
+    </div>
+    <p class="text-xs text-muted mt-3">Institution: a keyword from the institution name (e.g. Bundang). Specialty: a department name (e.g. Radiology). If many authors share the name, check <b>Korean institutions only</b>. ORCID gives the most accurate match.</p>
+  </section>
+
+  <div id="status" class="hidden mb-6"></div>
+
+  <section id="candidates-section" class="hidden mb-8">
+    <div class="flex items-baseline justify-between mb-4">
+      <h2 class="display text-xl font-medium">Select Author</h2>
+      <span id="candidate-count" class="text-xs text-muted mono"></span>
+    </div>
+    <p id="inst-filter-note" class="hidden text-xs text-muted mb-3"></p>
+    <div class="flex items-center gap-3 mb-3 text-xs flex-wrap">
+      <span class="text-muted">If several IDs are the same person, check them and merge:</span>
+      <button id="merge-selected-btn" disabled class="btn-primary px-3 py-1.5 rounded text-xs">
+        Merge <span id="merge-count">0</span> selected
+      </button>
+      <button id="clear-selection-btn" class="text-muted hover:underline">Clear selection</button>
+    </div>
+    <div id="candidates-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+  </section>
+
+  <section id="dashboard" class="hidden">
+
+    <div class="flex items-end justify-between flex-wrap gap-4 mb-6 pb-6 border-b rule">
+      <div>
+        <p class="text-xs uppercase tracking-wider text-muted mb-1">Selected Author</p>
+        <h2 id="author-display-name" class="display text-3xl font-medium"></h2>
+        <p id="author-affiliation" class="text-sm text-muted mt-1"></p>
+        <p id="author-orcid" class="text-xs text-muted mono mt-1"></p>
+      </div>
+      <button id="reset-btn" class="text-sm underline-offset-2 hover:underline text-muted">← New search</button>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div class="card rounded p-4">
+        <p class="text-xs text-muted uppercase tracking-wider mb-1">Publications</p>
+        <p class="stat-num text-3xl" id="stat-papers">—</p>
+      </div>
+      <div class="card rounded p-4">
+        <p class="text-xs text-muted uppercase tracking-wider mb-1">Citations</p>
+        <p class="stat-num text-3xl" id="stat-citations">—</p>
+      </div>
+      <div class="card rounded p-4">
+        <p class="text-xs text-muted uppercase tracking-wider mb-1">h-index</p>
+        <p class="stat-num text-3xl" id="stat-hindex">—</p>
+      </div>
+      <div class="card rounded p-4">
+        <p class="text-xs text-muted uppercase tracking-wider mb-1">Years Active</p>
+        <p class="stat-num text-3xl" id="stat-years">—</p>
+      </div>
+      <div class="card rounded p-4">
+        <p class="text-xs text-muted uppercase tracking-wider mb-1">Co-authors</p>
+        <p class="stat-num text-3xl" id="stat-coauthors">—</p>
+      </div>
+    </div>
+
+    <div class="card rounded p-4 mb-4">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-3">
+        <label class="text-xs uppercase tracking-wider text-muted">Year Range</label>
+        <span id="year-range-label" class="mono text-xs"></span>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <p class="text-xs text-muted mb-1">From</p>
+          <input type="range" id="year-min" class="w-full">
+        </div>
+        <div>
+          <p class="text-xs text-muted mb-1">To</p>
+          <input type="range" id="year-max" class="w-full">
+        </div>
+      </div>
+    </div>
+
+    <div class="card rounded p-4 mb-6 flex flex-wrap items-center gap-3">
+      <span class="text-xs uppercase tracking-wider text-muted">Authorship Role Filter</span>
+      <div class="flex gap-1" id="role-filter">
+        <button data-role="all" class="role-btn active text-xs px-3 py-1.5 rounded">All</button>
+        <button data-role="first" class="role-btn text-xs px-3 py-1.5 rounded">First author</button>
+        <button data-role="senior" class="role-btn text-xs px-3 py-1.5 rounded">Last author</button>
+        <button data-role="middle" class="role-btn text-xs px-3 py-1.5 rounded">Middle author</button>
+      </div>
+      <span id="active-coauthor-filter" class="hidden ml-auto text-xs">
+        <span class="text-muted">Co-author filter:</span> <span id="active-coauthor-name" class="mono"></span>
+        <button id="clear-coauthor-filter" class="ml-2 underline-offset-2 hover:underline text-muted">×</button>
+      </span>
+    </div>
+
+    <div class="border-b rule mb-6 flex gap-6 overflow-x-auto">
+      <button class="tab-btn active py-3 text-sm font-medium whitespace-nowrap" data-tab="bubble">Bubble Timeline</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="bubble3d">3D Timeline</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="network">Co-author Network</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="streamgraph">Topic Evolution</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="dotplot">Co-author × Year</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="journals">Journals (IF)</button>
+      <button class="tab-btn py-3 text-sm font-medium whitespace-nowrap" data-tab="papers">Papers</button>
+    </div>
+
+    <div id="tab-bubble" class="tab-panel">
+      <div class="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <h3 class="display text-lg">Career Lifeline</h3>
+        <p class="text-xs text-muted">Bubble = paper · size = citations · color = topic · style = authorship role</p>
+      </div>
+      <div class="card rounded p-4">
+        <div id="bubble-legend" class="flex flex-wrap gap-3 text-xs mb-3"></div>
+        <div id="bubble-scroll" style="max-height: 560px; overflow-y: auto;">
+          <div id="bubble-chart-box" style="position: relative; height: 540px;">
+            <canvas id="bubble-canvas" role="img" aria-label="Bubble timeline of publications"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-bubble3d" class="tab-panel hidden">
+      <div class="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <h3 class="display text-lg">3D Timeline</h3>
+        <div class="flex items-center gap-3 flex-wrap">
+          <p class="text-xs text-muted">X: year &middot; Y: journal IF &middot; Z: citations &nbsp;|&nbsp; Right-drag: rotate &middot; Left-drag: pan &middot; Scroll: zoom</p>
+          <button id="bubble-3d-reset" class="text-xs px-3 py-1 rounded" style="border:1px solid var(--rule);color:var(--ink-muted);background:transparent;cursor:pointer;">Reset view</button>
+        </div>
+      </div>
+      <div class="card rounded" style="overflow:hidden;">
+        <div id="bubble-3d-container" style="height:580px;"></div>
+      </div>
+    </div>
+
+    <div id="tab-network" class="tab-panel hidden">
+      <div class="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <h3 class="display text-lg">Co-author Co-occurrence</h3>
+        <p class="text-xs text-muted">Node = co-author (focal author excluded) · click → connection list</p>
+      </div>
+      <div class="card rounded p-4">
+        <div class="flex items-center gap-3 mb-3 flex-wrap">
+          <label class="text-xs text-muted">Min. joint papers:</label>
+          <input type="range" id="min-papers" min="1" max="10" value="2" class="w-32">
+          <span id="min-papers-label" class="mono text-xs">2</span>
+          <span id="network-stats" class="text-xs text-muted ml-auto"></span>
+        </div>
+        <div style="display:flex;">
+          <div id="network-container" style="height:600px; position:relative; flex:1; min-width:0;"></div>
+          <div id="network-sidebar" class="hidden" style="width:220px; flex-shrink:0; height:600px; overflow-y:auto; border-left:1px solid var(--rule);"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-streamgraph" class="tab-panel hidden">
+      <h3 class="display text-lg mb-3">Topic Evolution</h3>
+      <div class="card rounded p-4">
+        <div id="streamgraph-container" style="height: 400px;"></div>
+      </div>
+    </div>
+
+    <div id="tab-dotplot" class="tab-panel hidden">
+      <h3 class="display text-lg mb-3">Co-author Timeline</h3>
+      <div class="card rounded p-4">
+        <div id="dotplot-container" style="height: 500px; position: relative;">
+          <canvas id="dotplot-canvas" role="img" aria-label="Co-author dot plot"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-journals" class="tab-panel hidden">
+      <div class="flex items-baseline justify-between mb-4">
+        <h3 class="display text-lg">Journal Distribution</h3>
+        <p class="text-xs text-muted">IF from JCR when available; otherwise OpenAlex 2-year mean citedness (same formula, different database)</p>
+      </div>
+      <div class="card rounded overflow-hidden">
+        <table class="kg-table">
+          <thead id="journals-thead"><tr>
+            <th>Journal</th>
+            <th class="text-right" data-sort="papers">Papers<span class="sort-arrow" style="font-size:10px;"> ↓</span></th>
+            <th class="text-right" data-sort="cites">Total Cites<span class="sort-arrow" style="font-size:10px;"></span></th>
+            <th class="text-right" data-sort="if">JCR IF<span class="sort-arrow" style="font-size:10px;"></span></th>
+            <th class="text-right" data-sort="hindex">h-index<span class="sort-arrow" style="font-size:10px;"></span></th>
+          </tr></thead>
+          <tbody id="journals-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-papers" class="tab-panel hidden">
+      <h3 class="display text-lg mb-4">Papers</h3>
+      <div class="card rounded overflow-hidden">
+        <table class="kg-table">
+          <thead id="papers-thead"><tr>
+            <th style="width: 60px;" data-sort="year">Year<span class="sort-arrow" style="font-size:10px;"> ↓</span></th>
+            <th style="width: 80px;" data-role-cycle title="Click to filter by role">Role<span id="papers-role-label" style="font-size:10px;color:var(--ink-muted);"></span></th>
+            <th>Title / Journal</th>
+            <th class="text-right" style="width: 80px;" data-sort="cites">Cites<span class="sort-arrow" style="font-size:10px;"></span></th>
+          </tr></thead>
+          <tbody id="papers-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+  <footer class="mt-16 pt-6 border-t rule text-xs text-muted">
+    Data: <a href="https://openalex.org" target="_blank" class="underline">OpenAlex</a> ·
+    IF proxy = 2-year mean citedness (same formula as JCR IF, different citation database).
+    <div class="mt-2">
+      © 2026 Sung Il Hwang, MD, PhD. All rights reserved. ·
+      <a href="https://github.com/hwangsi/researcher-kg" target="_blank" class="underline">GitHub</a>
+    </div>
+  </footer>
+</div>
+
+<!-- Module load order matters: state → api/pubmed → search/dashboard → viz -->
+<!-- Full JCR table (local-only, gitignored; 404s on the public build) -->
+
+<!-- Committed public subset — assigns RKG.jcrData only if the full table didn't load -->
+<script>
+// Public subset of Journal Impact Factor values, cited from
+// Journal Citation Reports (Clarivate), 2025 JIF.
+// Coverage: the "RADIOLOGY, NUCLEAR MEDICINE & MEDICAL IMAGING" category
+// plus curated major medical journals. Not a substitute for JCR;
+// see jcr.clarivate.com for the authoritative data.
+// Journals not listed here fall back to OpenAlex 2yr mean citedness.
+// Regenerate with: python build_public_if.py
+window.RKG = window.RKG || {};
+// The full local table (data/jcr-if.js, gitignored) wins when present.
+RKG.jcrData = RKG.jcrData || {"1083-3668":3.3,"1560-2281":3.3,"2156-7085":3.2,"1536-0121":2.2,"1078-8956":52.5,"1546-170X":52.5,"0033-7587":2.4,"1938-5404":2.4,"0301-634X":2.4,"1432-2099":2.4,"0449-3060":2.1,"1349-9157":2.1,"0955-3002":2.0,"1362-3095":2.0,"0952-3480":2.8,"1099-1492":2.8,"1936-878X":19.0,"1876-7591":19.0,"1941-9651":9.1,"1942-0080":9.1,"2047-2404":6.1,"2047-2412":6.1,"1934-5925":5.4,"1097-6647":5.0,"1532-429X":5.0,"0174-1551":3.4,"1432-086X":3.4,"1071-3581":3.0,"1532-6551":3.0,"2520-8934":2.1,"1569-5794":1.8,"1875-8312":1.8,"2365-421X":3.7,"0195-6108":3.5,"1936-959X":3.5,"0150-9861":3.3,"1773-0406":3.3,"1869-1439":3.2,"1869-1447":3.2,"0028-3940":2.8,"1432-1920":2.8,"1051-2284":2.5,"1552-6569":2.5,"1591-0199":1.9,"2385-2011":1.9,"0250-832X":4.0,"1476-542X":4.0,"2157-846X":26.3,"1361-8415":14.0,"1361-8423":14.0,"0278-0062":12.4,"1558-254X":12.4,"2213-5979":6.9,"0895-6111":5.5,"1879-0771":5.5,"0031-9155":3.1,"1361-6560":3.1,"2662-4729":2.4,"2662-4737":2.4,"0161-7346":1.7,"1096-0910":1.7,"2398-6352":18.0,"2589-7500":25.5,"0140-6736":109.0,"1474-547X":109.0,"0028-4793":84.5,"1533-4406":84.5,"0098-7484":65.4,"1538-3598":65.4,"0959-535X":55.1,"1756-1833":55.1,"2168-6106":26.3,"2168-6114":26.3,"0003-4819":17.2,"1539-3704":17.2,"2589-5370":12.8,"2574-3805":11.7,"1011-8934":3.2,"1598-6357":3.2,"0513-5796":3.1,"1976-2437":3.1,"0025-7974":2.0,"1536-5964":2.0,"1084-9785":1.7,"1557-8852":1.7,"0028-0836":56.1,"1476-4687":56.1,"0036-8075":47.3,"1095-9203":47.3,"2041-1723":18.1,"0027-8424":9.5,"1091-6490":9.5,"2045-2322":4.9,"1932-6203":2.8,"2634-4416":7.4,"1053-8119":5.3,"1095-9572":5.3,"1065-9471":4.0,"1097-0193":4.0,"1052-5149":1.5,"1557-9867":1.5,"0969-8043":2.1,"1872-9800":2.1,"0033-8451":1.8,"1769-700X":1.8,"0952-4746":1.7,"1361-6498":1.7,"0017-9078":1.2,"1538-5159":1.2,"2508-1888":1.0,"2466-2461":1.0,"0144-8420":0.8,"1742-3406":0.8,"0960-7692":5.3,"1469-0705":5.3,"0732-183X":44.7,"1527-7755":44.7,"1470-2045":33.7,"1474-5488":33.7,"2374-2437":23.9,"2374-2445":23.9,"0360-3016":7.4,"1879-355X":7.4,"2638-616X":7.2,"0167-8140":5.8,"1879-0887":5.8,"1740-5025":4.8,"1470-7330":4.8,"1053-4296":4.3,"1532-9461":4.3,"1598-2998":4.2,"2005-9256":4.2,"1879-8500":3.9,"1748-717X":3.6,"2405-6308":3.6,"2405-6316":3.2,"2452-1094":2.9,"0265-6736":2.8,"1464-5157":2.8,"0179-7158":2.8,"1439-099X":2.8,"1318-2099":2.3,"1581-3207":2.3,"2405-6324":2.0,"2331-5180":2.0,"1538-4721":1.7,"1873-1449":1.7,"2631-6110":1.7,"2631-6129":1.7,"0958-3947":1.7,"1873-4022":1.7,"1507-1367":1.7,"2083-4640":1.7,"1689-832X":1.5,"2081-2841":1.5,"1278-3218":1.3,"1769-6658":1.3,"1793-5458":1.9,"1793-7205":1.9,"0364-2348":2.5,"1432-2161":2.5,"0301-0449":2.5,"1432-1998":2.5,"1051-0443":3.1,"1535-7732":3.1,"1559-3258":2.8,"1874-4710":2.6,"1874-4729":2.6,"2638-6100":20.1,"0033-8419":17.6,"1527-1315":17.6,"2950-1628":13.3,"2211-5684":11.1,"0161-5505":9.6,"1535-5667":9.6,"0363-9762":9.6,"1536-0229":9.6,"0020-9996":7.9,"1536-0210":7.9,"1619-7070":7.6,"1619-7089":7.6,"0361-803X":7.4,"1546-3141":7.4,"0001-2998":6.6,"1558-4623":6.6,"0271-5333":6.2,"1229-6929":6.1,"2005-8330":6.1,"0938-7994":6.0,"1432-1084":6.0,"1869-4101":5.6,"0033-8362":5.3,"1826-6983":5.3,"1546-1440":5.3,"1558-349X":5.3,"0897-1889":5.1,"1618-727X":5.1,"0041-624X":4.8,"1874-9968":4.8,"1076-6332":4.7,"1878-4046":4.7,"2509-9280":4.7,"0939-3889":4.7,"1876-4436":4.7,"1867-1071":4.6,"1867-108X":4.6,"2638-6135":4.5,"1053-1807":4.3,"1522-2586":4.3,"0846-5371":4.0,"1488-2361":4.0,"2673-8740":4.0,"1471-2342":3.9,"0720-048X":3.9,"1872-7727":3.9,"2469-7311":3.8,"2469-7303":3.8,"2524-8987":3.6,"2398-7324":3.6,"2197-7364":3.5,"2352-0477":3.5,"2513-9878":3.5,"1347-3182":3.4,"1880-2206":3.4,"0007-1285":3.4,"1748-880X":3.4,"0740-3194":3.2,"1522-2594":3.2,"0094-2405":3.2,"2473-4209":3.2,"0172-4614":3.2,"1438-8782":3.2,"2948-2925":3.1,"2948-2933":3.1,"0969-8051":3.1,"1872-9614":3.1,"2509-596X":3.1,"2199-7152":3.1,"2365-6271":3.1,"1556-8598":3.1,"1559-7814":3.1,"1352-8661":3.1,"2223-4292":2.8,"2223-4306":2.8,"0301-5629":2.8,"1879-291X":2.8,"2191-219X":2.7,"1120-1797":2.7,"1724-191X":2.7,"1078-8174":2.7,"1532-2831":2.7,"1305-3612":2.7,"1536-1632":2.5,"1860-2002":2.5,"1526-9914":2.5,"0887-2171":2.5,"1558-5034":2.5,"2379-1381":2.5,"2379-139X":2.5,"2673-8880":2.5,"0914-7187":2.4,"1864-6433":2.4,"2288-5919":2.4,"2288-5943":2.4,"2834-2860":2.4,"2834-2879":2.4,"2366-004X":2.3,"2366-0058":2.3,"2329-4302":2.3,"2329-4310":2.3,"1869-3474":2.3,"1869-3482":2.3,"1939-8654":2.3,"0899-7071":2.2,"1873-4499":2.2,"0730-725X":2.1,"1873-5894":2.1,"0033-8389":2.1,"1557-8275":2.1,"0278-4297":2.1,"1550-9613":2.1,"2051-3895":2.1,"2051-3909":2.1,"1346-4523":2.1,"1613-2254":2.1,"2057-1976":2.0,"0009-9260":2.0,"1365-229X":2.0,"1064-9689":2.0,"1557-9786":2.0,"1438-9029":2.0,"1438-9010":2.0,"1844-4172":1.8,"2066-8643":1.8,"2510-3636":1.8,"1089-2516":1.8,"1557-9808":1.8,"2976-9337":1.8,"3005-074X":1.7,"2160-8407":1.7,"2008-9783":1.7,"2228-6721":1.7,"1865-0333":1.6,"1865-0341":1.6,"1971-3495":1.6,"1876-7931":1.6,"0137-7183":1.6,"1899-0967":1.6,"0037-198X":1.6,"1558-4658":1.6,"1754-9477":1.5,"1754-9485":1.5,"0091-4916":1.5,"1535-5675":1.5,"0029-5566":1.5,"2567-6407":1.5,"0033-8338":1.5,"1578-178X":1.5,"2084-8404":1.5,"2451-070X":1.5,"2090-1941":1.4,"2090-195X":1.4,"0363-0188":1.4,"1824-4785":1.4,"1827-1936":1.4,"0143-3636":1.4,"1473-5628":1.4,"0363-8715":1.4,"1532-3145":1.4,"1089-7860":1.4,"1098-898X":1.4,"2281-5872":1.4,"2281-7565":1.4,"2514-8281":1.4,"0883-5993":1.3,"1536-0237":1.3,"0091-2751":1.3,"1097-0096":1.3,"0929-6441":1.3,"2212-1552":1.3,"2167-4825":1.2,"1070-3004":1.2,"1438-1435":1.2,"0739-9529":1.2,"1098-8963":1.2,"0284-1851":1.2,"1600-0455":1.2,"1745-3054":1.2,"1745-3062":1.2,"2253-654X":1.2,"1949-8470":1.2,"2432-0935":1.2,"1506-9680":1.2,"1644-4345":1.2,"2156-7514":1.1,"2156-5597":1.1,"0894-8771":1.1,"1536-0253":1.1,"1573-4056":1.1,"1875-6603":1.1,"0971-3026":1.1,"1998-3808":1.1,"0971-6203":1.1,"1998-3913":1.1,"1027-202X":1.0,"2078-6778":1.0,"1450-1147":1.0,"1607-3312":1.0,"2058-4601":0.9,"2666-2264":0.9,"2666-2256":0.9,"2146-1414":0.9,"2147-1959":0.9,"2090-4762":0.9,"2520-8985":0.9,"2520-8993":0.9,"1898-0309":0.8,"1108-1430":0.8,"1790-5427":0.8,"2949-6683":0.8,"1742-271X":0.7,"1743-1344":0.7,"2951-0805":0.7,"2731-7048":0.7,"2731-7056":0.7,"1460-3969":0.7,"1467-1131":0.7,"1941-9066":0.6,"1941-9074":0.6,"2384-1109":0.6,"2055-7159":0.6,"2322-3243":0.6,"0033-8397":0.6,"1943-5657":0.6,"0160-9963":0.6,"1879-2898":0.6,"2202-8323":0.4,"2054-6750":0.4,"0972-3919":0.4,"0974-0244":0.4,"8756-4793":0.4,"1552-5430":0.4,"1546-6086":0.4,"1552-5023":0.4,"1681-2824":0.3,"2008-2509":0.3,"2223-6619":0.3,"2307-4620":0.3,"1735-1065":0.1,"2008-2711":0.1,"2171-3669":0.1,"2171-9705":0.1,"1776-9817":0.1,"2214-8485":0.1,"0149-9009":0.1,"1938-1395":0.1,"2168-6254":15.6,"2168-6262":15.6};
+
+</script>
+<script>
+// Central state. All viz modules subscribe to changes.
+// Mutations only via setters defined here. Direct access for reads is fine.
+
+window.RKG = window.RKG || {};
+
+RKG.state = (function() {
+  'use strict';
+
+  const _state = {
+    author: null,           // selected author object from OpenAlex
+    works: [],              // all works for selected author
+    sourceStats: new Map(), // openalex source id -> {if_2yr, h_index, display_name, ...}
+
+    // Filter state
+    yearMin: null,
+    yearMax: null,
+    filteredYearMin: null,
+    filteredYearMax: null,
+    authorshipRole: 'all',     // 'all' | 'first' | 'senior' | 'middle'
+    selectedCoauthor: null,    // author id to filter by, or null
+    minCoauthorPapers: 2,      // for network threshold
+  };
+
+  const _listeners = new Set();
+
+  function subscribe(fn) {
+    _listeners.add(fn);
+    return () => _listeners.delete(fn);
+  }
+
+  function emit() {
+    _listeners.forEach(fn => {
+      try { fn(_state); } catch (e) { console.error('listener error', e); }
+    });
+  }
+
+  // ----- setters -----
+
+  function setAuthor(author) {
+    _state.author = author;
+    _state.works = [];
+    _state.sourceStats = new Map();
+    _state.selectedCoauthor = null;
+    _state.authorshipRole = 'all';
+    emit();
+  }
+
+  function setWorks(works) {
+    _state.works = works || [];
+    if (_state.works.length) {
+      const years = _state.works.map(w => w.publication_year).filter(Boolean);
+      _state.yearMin = Math.min(...years);
+      // Always extend upper bound to the current year so recent papers are never cut off.
+      _state.yearMax = Math.max(Math.max(...years), new Date().getFullYear());
+      _state.filteredYearMin = _state.yearMin;
+      _state.filteredYearMax = _state.yearMax;
+    }
+    emit();
+  }
+
+  function setSourceStats(stats) {
+    _state.sourceStats = stats || new Map();
+    emit();
+  }
+
+  function setYearRange(lo, hi) {
+    if (lo > hi) [lo, hi] = [hi, lo];
+    _state.filteredYearMin = lo;
+    _state.filteredYearMax = hi;
+    emit();
+  }
+
+  function setAuthorshipRole(role) {
+    _state.authorshipRole = role;
+    emit();
+  }
+
+  function setSelectedCoauthor(id) {
+    _state.selectedCoauthor = id;
+    emit();
+  }
+
+  function setMinCoauthorPapers(n) {
+    _state.minCoauthorPapers = n;
+    emit();
+  }
+
+  function reset() {
+    _state.author = null;
+    _state.works = [];
+    _state.sourceStats = new Map();
+    _state.selectedCoauthor = null;
+    _state.authorshipRole = 'all';
+    emit();
+  }
+
+  // ----- selectors -----
+
+  // Determine focal author's role in a paper.
+  // Returns 'first' | 'senior' | 'middle' | 'none'
+  function getAuthorshipRole(work) {
+    if (!_state.author) return 'none';
+    const focalIds = _state.author._mergedIds || [_state.author.id];
+    const auths = work.authorships || [];
+    const idx = auths.findIndex(a => a.author && focalIds.includes(a.author.id));
+    if (idx === -1) return 'none';
+    if (auths.length === 1) return 'first';
+    if (idx === 0) return 'first';
+    if (idx === auths.length - 1) return 'senior';
+    return 'middle';
+  }
+
+  // Returns works after applying ALL active filters.
+  function getFilteredWorks() {
+    return _state.works.filter(w => {
+      const y = w.publication_year;
+      if (!y || y < _state.filteredYearMin || y > _state.filteredYearMax) return false;
+
+      if (_state.authorshipRole !== 'all') {
+        if (getAuthorshipRole(w) !== _state.authorshipRole) return false;
+      }
+
+      if (_state.selectedCoauthor) {
+        const has = (w.authorships || []).some(a => a.author && a.author.id === _state.selectedCoauthor);
+        if (!has) return false;
+      }
+
+      return true;
+    });
+  }
+
+  // Primary topic for a work (display name string, or null).
+  function getPrimaryTopic(work) {
+    const topics = (work.topics && work.topics.length) ? work.topics : (work.concepts || []);
+    return topics[0] ? topics[0].display_name : null;
+  }
+
+  // Get raw state object (read-only — DO NOT MUTATE).
+  function get() { return _state; }
+
+  return {
+    subscribe,
+    setAuthor, setWorks, setSourceStats,
+    setYearRange, setAuthorshipRole, setSelectedCoauthor, setMinCoauthorPapers,
+    reset,
+    getAuthorshipRole, getFilteredWorks, getPrimaryTopic,
+    get,
+  };
+})();
+
+</script>
+<script>
+// OpenAlex API wrapper. All requests go through polite pool.
+// Replace POLITE_EMAIL with your email for better rate limits.
+
+window.RKG = window.RKG || {};
+
+RKG.api = (function() {
+  'use strict';
+
+  const POLITE_EMAIL = 'researcher-kg@example.com';
+  const BASE = 'https://api.openalex.org';
+
+  async function _fetch(path) {
+    const sep = path.includes('?') ? '&' : '?';
+    const url = `${BASE}${path}${sep}mailto=${encodeURIComponent(POLITE_EMAIL)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`OpenAlex ${res.status}: ${path}`);
+    }
+    return res.json();
+  }
+
+  function _normalizeOrcid(orcid) {
+    const clean = (orcid || '').trim().replace(/^https?:\/\/orcid\.org\//, '');
+    if (!clean) return '';
+    if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/i.test(clean)) {
+      throw new Error('Invalid ORCID format (e.g. 0000-0002-9574-5069)');
+    }
+    return clean;
+  }
+
+  function _tokens(text) {
+    return (text || '').toLowerCase().trim().split(/[\s,;|/]+/).filter(t => t.length >= 3);
+  }
+
+  const SPECIALTY_ALIASES = {
+    radiology: [
+      'radiology', 'radiologic', 'radiological', 'radiography',
+      'medical imaging', 'diagnostic imaging',
+      'mri', 'ct', 'computed tomography',
+      'ultrasound', 'sonography', 'x-ray', 'xray',
+      'interventional radiology', 'neuroradiology',
+    ],
+  };
+
+  const RADIOLOGY_SOURCE_RE = /\b(radiolog\w*|roentgen\w*|medical imaging|clinical imaging|magnetic resonance imaging|nuclear medicine|ultrasound in medicine|computer assisted tomography|imaging and radiation oncology)\b/i;
+  const RADIOLOGY_TOPIC_RE = /\b(radiolog\w*|radiography|diagnostic imaging|medical imaging|magnetic resonance imaging|computed tomography|ultrasonography|sonography|x-ray|roentgen\w*|nuclear medicine|interventional radiology|neuroradiology)\b/i;
+  const RADIOLOGY_TITLE_RE = /\b(radiolog\w*|radiographic|radiologic|computed tomography|ultrasonography|sonography|x-ray|roentgen\w*|magnetic resonance imaging|mri|ct)\b/i;
+  const NON_RADIOLOGY_SOURCE_RE = /\b(polymer|macromolecular|chemical communications|analytical chemistry|chromatography|bulletin of the korean chemical society|ecs meeting abstracts)\b/i;
+
+  function _normText(text) {
+    return (text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  function _normalizeAuthor(a) {
+    const affRecords = (a.affiliations || [])
+      .map(x => x.institution)
+      .filter(x => x && x.display_name)
+      .map(x => ({ id: x.id || '', display_name: x.display_name }));
+    const lastRecords = (a.last_known_institutions || [])
+      .filter(x => x && x.display_name)
+      .map(x => ({ id: x.id || '', display_name: x.display_name }));
+    const recordMap = new Map();
+    for (const rec of [...affRecords, ...lastRecords]) {
+      const key = rec.id || rec.display_name;
+      if (!recordMap.has(key)) recordMap.set(key, rec);
+    }
+    const institutionRecords = [...recordMap.values()];
+    const allInsts = institutionRecords.map(x => x.display_name);
+    const allInstIds = institutionRecords.map(x => x.id).filter(Boolean);
+
+    const conceptNames = (a.x_concepts || []).map(c => c.display_name || '');
+    const topicNames = (a.topics || []).flatMap(t => [
+      t.display_name,
+      t.subfield && t.subfield.display_name,
+      t.field && t.field.display_name,
+      t.domain && t.domain.display_name,
+    ].filter(Boolean));
+    const specialtyText = [...conceptNames, ...topicNames].join(' | ').toLowerCase();
+
+    return {
+      ...a,
+      _institutions: allInsts,
+      _institutionIds: allInstIds,
+      _institutionRecords: institutionRecords,
+      _displayInstitutions: allInsts,
+      _specialtyText: specialtyText,
+    };
+  }
+
+  async function _resolveInstitution(keyword) {
+    const instKeyword = (keyword || '').trim();
+    if (instKeyword.length < 3) return [];
+    try {
+      const idata = await _fetch(
+        `/institutions?search=${encodeURIComponent(instKeyword)}&per-page=5&select=id,display_name`
+      );
+      return (idata.results || []).slice(0, 4);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function _fetchCandidateAuthors(criteria, resolvedInst) {
+    const filters = [];
+    if (criteria.koreaOnly) {
+      filters.push('affiliations.institution.country_code:KR');
+    }
+    if (criteria.orcid) {
+      filters.push(`orcid:${encodeURIComponent(criteria.orcid)}`);
+    }
+    if (resolvedInst.length) {
+      filters.push(`affiliations.institution.id:${resolvedInst.map(h => h.id).join('|')}`);
+    }
+
+    const filterParam = filters.length ? `&filter=${filters.join(',')}` : '';
+    const perPage = filterParam ? 50 : 25;
+    const searchParam = criteria.name ? `search=${encodeURIComponent(criteria.name)}&` : '';
+    const data = await _fetch(`/authors?${searchParam}per-page=${perPage}${filterParam}`);
+    return data.results || [];
+  }
+
+  function _matchesCriteria(author, criteria, includeSpecialty) {
+    if (criteria.orcid) {
+      const authorOrcid = _normalizeOrcid(author.orcid || '');
+      if (authorOrcid !== criteria.orcid) return false;
+    }
+
+    if (criteria.name) {
+      const nameTokens = _tokens(criteria.name);
+      const display = _normText(author.display_name);
+      if (nameTokens.length && !nameTokens.every(t => display.includes(t))) return false;
+    }
+
+    if (criteria.instTokens.length) {
+      const joined = author._institutions.map(s => s.toLowerCase()).join(' | ');
+      const idMatched = criteria.resolvedInstIds.some(id => (author._institutionIds || []).includes(id));
+      const tokenMatched = criteria.instTokens.every(t => joined.includes(t));
+      if (!idMatched && !tokenMatched) return false;
+    }
+
+    if (includeSpecialty && criteria.specTokens.length) {
+      if (!criteria.specTokens.every(t => author._specialtyText.includes(t))) return false;
+    }
+
+    return true;
+  }
+
+  function _withMatchedInstitutions(author, criteria) {
+    if (!criteria.instTokens.length) {
+      return { ...author, _matchedInstitutions: [], _displayInstitutions: author._institutions };
+    }
+
+    const matched = [];
+    for (const rec of author._institutionRecords || []) {
+      const text = _normText(rec.display_name);
+      const idMatched = rec.id && criteria.resolvedInstIds.includes(rec.id);
+      const tokenMatched = criteria.instTokens.every(t => text.includes(t));
+      if (idMatched || tokenMatched) matched.push(rec.display_name);
+    }
+
+    const uniqueMatched = [...new Set(matched)];
+    return {
+      ...author,
+      _matchedInstitutions: uniqueMatched,
+      _displayInstitutions: uniqueMatched.length ? uniqueMatched : author._institutions,
+    };
+  }
+
+  function _institutionTokenSet(author) {
+    const text = (author._institutions || []).join(' ');
+    return new Set(_tokens(text));
+  }
+
+  function _dedupeAndGroup(authors) {
+    const byId = new Map();
+    for (const author of authors) {
+      if (!byId.has(author.id)) byId.set(author.id, author);
+    }
+
+    const unique = [...byId.values()];
+    const byName = new Map();
+    const byOrcid = new Map();
+    for (const author of unique) {
+      const nameKey = _normText(author.display_name);
+      if (!byName.has(nameKey)) byName.set(nameKey, []);
+      byName.get(nameKey).push(author);
+
+      if (author.orcid) {
+        const orcidKey = _normalizeOrcid(author.orcid);
+        if (!byOrcid.has(orcidKey)) byOrcid.set(orcidKey, []);
+        byOrcid.get(orcidKey).push(author);
+      }
+    }
+
+    const enriched = unique.map(author => {
+      const possible = new Set();
+      const sameName = byName.get(_normText(author.display_name)) || [];
+      const instTokens = _institutionTokenSet(author);
+
+      for (const other of sameName) {
+        if (other.id === author.id) continue;
+        const otherInstTokens = _institutionTokenSet(other);
+        const hasSharedInst = [...instTokens].some(t => otherInstTokens.has(t));
+        if (hasSharedInst || !instTokens.size || !otherInstTokens.size) possible.add(other.id);
+      }
+
+      if (author.orcid) {
+        const sameOrcid = byOrcid.get(_normalizeOrcid(author.orcid)) || [];
+        for (const other of sameOrcid) {
+          if (other.id !== author.id) possible.add(other.id);
+        }
+      }
+
+      const ids = [author.id, ...possible];
+      return {
+        ...author,
+        _duplicateGroupIds: ids.length > 1 ? ids : [],
+      };
+    });
+
+    enriched.sort((a, b) => {
+      const dupA = a._duplicateGroupIds.length ? 0 : 1;
+      const dupB = b._duplicateGroupIds.length ? 0 : 1;
+      if (dupA !== dupB) return dupA - dupB;
+      return (b.works_count || 0) - (a.works_count || 0);
+    });
+
+    return enriched;
+  }
+
+  function _specialtyGroups(criteria) {
+    return criteria.specTokens.map(token => SPECIALTY_ALIASES[token] || [token]);
+  }
+
+  function _workText(work) {
+    const source = work.primary_location && work.primary_location.source;
+    const sourceName = source && source.display_name;
+    const topicNames = (work.topics || []).flatMap(t => [
+      t.display_name,
+      t.subfield && t.subfield.display_name,
+      t.field && t.field.display_name,
+      t.domain && t.domain.display_name,
+    ].filter(Boolean));
+    const conceptNames = (work.concepts || []).map(c => c.display_name || '');
+    return _normText([work.title, sourceName, ...topicNames, ...conceptNames].join(' | '));
+  }
+
+  function _workSourceName(work) {
+    const source = work.primary_location && work.primary_location.source;
+    return (source && source.display_name) || '';
+  }
+
+  function _workTopicText(work) {
+    const topicNames = (work.topics || []).flatMap(t => [
+      t.display_name,
+      t.subfield && t.subfield.display_name,
+      t.field && t.field.display_name,
+      t.domain && t.domain.display_name,
+    ].filter(Boolean));
+    const conceptNames = (work.concepts || []).map(c => c.display_name || '');
+    return [...topicNames, ...conceptNames].join(' | ');
+  }
+
+  function _workAuthorInstitutionText(work, focalIds) {
+    const auths = work.authorships || [];
+    const parts = [];
+    for (const authorship of auths) {
+      const authorId = authorship.author && authorship.author.id;
+      if (!focalIds.includes(authorId)) continue;
+      for (const inst of authorship.institutions || []) {
+        if (inst.display_name) parts.push(inst.display_name);
+      }
+      for (const raw of authorship.raw_affiliation_strings || []) {
+        if (raw) parts.push(raw);
+      }
+    }
+    return _normText(parts.join(' | '));
+  }
+
+  function _workAuthorInstitutionIds(work, focalIds) {
+    const auths = work.authorships || [];
+    const ids = [];
+    for (const authorship of auths) {
+      const authorId = authorship.author && authorship.author.id;
+      if (!focalIds.includes(authorId)) continue;
+      for (const inst of authorship.institutions || []) {
+        if (inst.id) ids.push(inst.id);
+      }
+    }
+    return ids;
+  }
+
+  function _workMatchesInstitution(work, focalIds, criteria) {
+    if (!criteria || !criteria.instTokens || !criteria.instTokens.length) return true;
+    const instText = _workAuthorInstitutionText(work, focalIds);
+    const instIds = _workAuthorInstitutionIds(work, focalIds);
+    const idMatched = criteria.resolvedInstIds.some(id => instIds.includes(id));
+    const tokenMatched = criteria.instTokens.every(t => instText.includes(t));
+    return idMatched || tokenMatched;
+  }
+
+  function _matchesRadiologyWork(work) {
+    const sourceName = _workSourceName(work);
+    if (NON_RADIOLOGY_SOURCE_RE.test(sourceName)) return false;
+    if (RADIOLOGY_SOURCE_RE.test(sourceName)) return true;
+    if (RADIOLOGY_TOPIC_RE.test(_workTopicText(work))) return true;
+    return RADIOLOGY_TITLE_RE.test(work.title || '');
+  }
+
+  function _matchesRadiologyWorkForAuthor(work, focalIds) {
+    if (_matchesRadiologyWork(work)) return true;
+    return RADIOLOGY_TOPIC_RE.test(_workAuthorInstitutionText(work, focalIds));
+  }
+
+  function _matchesSpecialtyWork(work, groups, criteria) {
+    if (criteria && criteria.specTokens.includes('radiology')) {
+      if (!_matchesRadiologyWork(work)) return false;
+      const otherGroups = groups.filter((_, i) => criteria.specTokens[i] !== 'radiology');
+      if (!otherGroups.length) return true;
+      const text = _workText(work);
+      return otherGroups.every(group => group.some(term => text.includes(term)));
+    }
+
+    const text = _workText(work);
+    return groups.every(group => group.some(term => text.includes(term)));
+  }
+
+  function filterWorksBySearchCriteria(works, author) {
+    const criteria = author && author._searchCriteria;
+    if (!criteria) return works || [];
+
+    const focalIds = author._mergedIds || [author.id];
+    const groups = criteria.specTokens && criteria.specTokens.length ? _specialtyGroups(criteria) : [];
+
+    return (works || []).filter(work => {
+      if (!_workMatchesInstitution(work, focalIds, criteria)) return false;
+      if (groups.length && criteria.specTokens.includes('radiology') && !_matchesRadiologyWorkForAuthor(work, focalIds)) return false;
+      if (groups.length && !criteria.specTokens.includes('radiology') && !_matchesSpecialtyWork(work, groups, criteria)) return false;
+      return true;
+    });
+  }
+
+  async function _fetchWorksSample(authorId) {
+    const data = await _fetch(
+      `/works?filter=author.id:${authorId}&per-page=50&sort=cited_by_count:desc&select=${WORK_SELECT}`
+    );
+    return data.results || [];
+  }
+
+  function _passesSpecialtyEvidence(sampleSize, matchedCount) {
+    if (!sampleSize) return false;
+    if (sampleSize < 5) return matchedCount >= 1;
+    if (sampleSize < 20) return matchedCount >= 2;
+    return matchedCount >= 3 && (matchedCount / sampleSize) >= 0.12;
+  }
+
+  async function _filterByWorkSpecialty(authors, criteria) {
+    if (!criteria.specTokens.length) return authors;
+
+    const groups = _specialtyGroups(criteria);
+    const checked = [];
+    for (const author of authors) {
+      let works = [];
+      try {
+        works = await _fetchWorksSample(author.id);
+      } catch (_) {
+        works = [];
+      }
+      const matched = works.filter(w => _matchesSpecialtyWork(w, groups, criteria));
+      const sampleSize = works.length;
+      const matchedCount = matched.length;
+      if (_passesSpecialtyEvidence(sampleSize, matchedCount)) {
+        checked.push({
+          ...author,
+          _specialtyEvidence: {
+            sampleSize,
+            matchedCount,
+            ratio: sampleSize ? matchedCount / sampleSize : 0,
+            examples: matched.slice(0, 3).map(w => w.title).filter(Boolean),
+          },
+        });
+      }
+    }
+
+    checked.sort((a, b) => {
+      const ar = a._specialtyEvidence ? a._specialtyEvidence.ratio : 0;
+      const br = b._specialtyEvidence ? b._specialtyEvidence.ratio : 0;
+      if (br !== ar) return br - ar;
+      return (b.works_count || 0) - (a.works_count || 0);
+    });
+
+    return checked;
+  }
+
+  // Unified author search. Every provided criterion is applied as an AND condition.
+  async function searchAuthors(input) {
+    const criteria = {
+      name: (input && input.name || '').trim(),
+      institution: (input && input.institution || '').trim(),
+      specialty: (input && input.specialty || '').trim(),
+      orcid: _normalizeOrcid(input && input.orcid),
+      koreaOnly: !!(input && input.koreaOnly),
+    };
+    criteria.instTokens = _tokens(criteria.institution);
+    criteria.specTokens = _tokens(criteria.specialty);
+
+    if (!criteria.orcid && !criteria.name && !criteria.institution && !criteria.specialty) {
+      throw new Error('Enter at least one of: author name, ORCID, institution, or specialty.');
+    }
+
+    const resolvedInst = await _resolveInstitution(criteria.institution);
+    criteria.resolvedInstIds = resolvedInst.map(h => h.id);
+    const raw = await _fetchCandidateAuthors(criteria, resolvedInst);
+    const normalized = raw.map(_normalizeAuthor);
+    const baseFiltered = normalized
+      .filter(author => _matchesCriteria(author, criteria, false))
+      .map(author => _withMatchedInstitutions(author, criteria));
+    const specialtyFiltered = await _filterByWorkSpecialty(baseFiltered, criteria);
+    const grouped = _dedupeAndGroup(specialtyFiltered);
+    grouped.forEach(author => { author._searchCriteria = criteria; });
+
+    grouped._resolvedInst = resolvedInst.map(h => h.display_name);
+    grouped._criteria = criteria;
+    return grouped;
+  }
+
+  // Cursor-paginated fetch of all works for an author.
+  // Sort is intentionally omitted — sorting by a non-unique field like publication_year
+  // causes non-deterministic cursor pagination (records skipped at page boundaries).
+  // Default sort (by ID) is stable and ensures complete retrieval.
+  // onProgress(count) called each page.
+  const WORK_SELECT = [
+    'id', 'doi', 'title', 'publication_year',
+    'cited_by_count', 'primary_location',
+    'authorships', 'topics', 'concepts',
+  ].join(',');
+
+  async function _fetchWorksPaged(filter, onProgress) {
+    const works = [];
+    let cursor = '*';
+    let safety = 0;
+    while (cursor && safety < 100) {
+      const data = await _fetch(
+        `/works?filter=${filter}&per-page=200&cursor=${encodeURIComponent(cursor)}&select=${WORK_SELECT}`
+      );
+      works.push(...data.results);
+      if (onProgress) onProgress(works.length);
+      cursor = data.meta && data.meta.next_cursor;
+      if (!cursor) break;
+      safety++;
+    }
+    return works;
+  }
+
+  async function fetchAllWorks(authorId, onProgress) {
+    return _fetchWorksPaged(`author.id:${authorId}`, onProgress);
+  }
+
+  // Works carrying this ORCID — catches papers under split author IDs
+  // the user didn't select in the candidate picker.
+  async function fetchWorksByOrcid(orcid, onProgress) {
+    const clean = _normalizeOrcid(orcid);
+    if (!clean) return [];
+    return _fetchWorksPaged(`author.orcid:${clean}`, onProgress);
+  }
+
+  // Lowercase bare DOI ("10.xxxx/..."), or null.
+  function normalizeDoi(doi) {
+    const clean = (doi || '').toLowerCase().trim()
+      .replace(/^https?:\/\/(dx\.)?doi\.org\//, '')
+      .replace(/^doi:/, '');
+    return clean.startsWith('10.') ? clean : null;
+  }
+
+  // Stage 1 — ORCID public registry: the author-curated works list.
+  // Returns [{doi, pmid, title, year}]; any field may be null.
+  async function fetchOrcidWorks(orcid) {
+    const clean = _normalizeOrcid(orcid);
+    if (!clean) return [];
+    const res = await fetch(`https://pub.orcid.org/v3.0/${clean}/works`, {
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!res.ok) throw new Error(`ORCID ${res.status}`);
+    const data = await res.json();
+    return (data.group || []).map(group => {
+      const extIds = (group['external-ids'] && group['external-ids']['external-id']) || [];
+      let doi = null, pmid = null;
+      for (const e of extIds) {
+        const type = (e['external-id-type'] || '').toLowerCase();
+        const val = (e['external-id-value'] || '').trim();
+        if (type === 'doi' && !doi) doi = normalizeDoi(val);
+        if (type === 'pmid' && !pmid && /^\d+$/.test(val)) pmid = val;
+      }
+      const s = (group['work-summary'] || [])[0] || {};
+      const title = s.title && s.title.title && s.title.title.value || null;
+      const year = s['publication-date'] && s['publication-date'].year
+        ? +s['publication-date'].year.value : null;
+      return { doi, pmid, title, year };
+    });
+  }
+
+  // Hydrate specific DOIs from OpenAlex (≤50 per filter call).
+  // DOIs containing ',' or '|' are skipped — they'd corrupt the filter syntax.
+  async function fetchWorksByDois(dois) {
+    const clean = [...new Set((dois || []).map(normalizeDoi).filter(d => d && !/[,|]/.test(d)))];
+    const works = [];
+    for (let i = 0; i < clean.length; i += 50) {
+      const chunk = clean.slice(i, i + 50);
+      try {
+        const data = await _fetch(`/works?filter=doi:${chunk.join('|')}&per-page=50&select=${WORK_SELECT}`);
+        works.push(...data.results);
+      } catch (e) {
+        console.warn('DOI batch hydration failed', e);
+      }
+    }
+    return works;
+  }
+
+  // Batch fetch source (journal) details for IF info.
+  // Input: iterable of OpenAlex source IDs (full URLs).
+  // Returns: Map<sourceId, {display_name, host_org, if_2yr, if_source, h_index, works_count, issn_l}>.
+  // if_source: 'JCR' when from JCR 2026 data, 'OA' when from OpenAlex 2yr citedness.
+  async function fetchSourceStats(sourceIds) {
+    const jcr = window.RKG && window.RKG.jcrData;
+    const stats = new Map();
+    const ids = [...sourceIds].filter(Boolean);
+    for (let i = 0; i < ids.length; i += 50) {
+      const chunk = ids.slice(i, i + 50);
+      const filterIds = chunk.map(x => x.replace('https://openalex.org/', '')).join('|');
+      try {
+        const data = await _fetch(`/sources?filter=ids.openalex:${filterIds}&per-page=50`);
+        for (const s of data.results) {
+          // Try JCR lookup: check issn_l then all ISSNs from OpenAlex
+          let if_2yr = null;
+          let if_source = 'OA';
+          if (jcr) {
+            const issns = [s.issn_l, ...(s.issn || [])].filter(Boolean);
+            for (const issn of issns) {
+              if (jcr[issn] != null) {
+                if_2yr = jcr[issn];
+                if_source = 'JCR';
+                break;
+              }
+            }
+          }
+          // Fall back to OpenAlex 2yr mean citedness
+          if (if_2yr === null && s.summary_stats && s.summary_stats['2yr_mean_citedness'] != null) {
+            if_2yr = s.summary_stats['2yr_mean_citedness'];
+          }
+          stats.set(s.id, {
+            display_name: s.display_name,
+            host_org: s.host_organization_name || '',
+            if_2yr,
+            if_source,
+            h_index: s.summary_stats ? s.summary_stats.h_index : null,
+            works_count: s.works_count,
+            issn_l: s.issn_l,
+          });
+        }
+      } catch (e) {
+        console.warn('source fetch failed for chunk', e);
+      }
+    }
+    return stats;
+  }
+
+  async function searchByOrcid(orcid) {
+    const clean = orcid.trim().replace(/^https?:\/\/orcid\.org\//, '');
+    if (!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/i.test(clean)) {
+      throw new Error('Invalid ORCID format (e.g. 0000-0002-9574-5069)');
+    }
+    const data = await _fetch(`/authors?filter=orcid:${encodeURIComponent(clean)}&per-page=5`);
+    return data.results.map(a => {
+      const affs = (a.affiliations || []).map(x => x.institution && x.institution.display_name).filter(Boolean);
+      const last = (a.last_known_institutions || []).map(x => x.display_name);
+      return { ...a, _institutions: [...new Set([...affs, ...last])] };
+    });
+  }
+
+  return {
+    searchAuthors, searchByOrcid, fetchAllWorks, fetchSourceStats, filterWorksBySearchCriteria,
+    fetchOrcidWorks, fetchWorksByOrcid, fetchWorksByDois, normalizeDoi,
+  };
+})();
+
+</script>
+<script>
+// PubMed E-utilities wrapper — Stage 3 of the works retrieval pipeline.
+// MeSH enrichment + Medline recall. NEVER searches by name alone (Korean-name
+// disambiguation risk): every lookup is keyed on ORCID or DOIs from earlier stages.
+
+window.RKG = window.RKG || {};
+
+RKG.pubmed = (function() {
+  'use strict';
+
+  const BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
+  const MIN_INTERVAL_MS = 350; // keyless E-utilities limit: 3 req/s
+  let _lastCall = 0;
+
+  async function _throttledFetch(url) {
+    const wait = _lastCall + MIN_INTERVAL_MS - Date.now();
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    _lastCall = Date.now();
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`PubMed ${res.status}`);
+    return res;
+  }
+
+  // ORCID → PMIDs via [auid] indexed field.
+  async function pmidsByOrcid(orcid) {
+    const clean = (orcid || '').trim().replace(/^https?:\/\/orcid\.org\//, '');
+    if (!clean) return [];
+    const res = await _throttledFetch(
+      `${BASE}/esearch.fcgi?db=pubmed&retmax=3000&retmode=json&term=${encodeURIComponent(clean + '[auid]')}`
+    );
+    const data = await res.json();
+    return (data.esearchresult && data.esearchresult.idlist) || [];
+  }
+
+  // DOIs → PMIDs via chunked OR queries. Returns combined PMID list;
+  // per-paper attribution happens later in fetchArticles (DOI read from XML).
+  async function pmidsByDois(dois, onProgress) {
+    const clean = [...new Set((dois || []).filter(Boolean))];
+    const pmids = new Set();
+    for (let i = 0; i < clean.length; i += 40) {
+      const chunk = clean.slice(i, i + 40);
+      const term = chunk.map(d => `"${d}"[doi]`).join(' OR ');
+      try {
+        const res = await _throttledFetch(
+          `${BASE}/esearch.fcgi?db=pubmed&retmax=200&retmode=json&term=${encodeURIComponent(term)}`
+        );
+        const data = await res.json();
+        for (const id of (data.esearchresult && data.esearchresult.idlist) || []) pmids.add(id);
+      } catch (e) {
+        console.warn('PubMed DOI chunk search failed', e);
+      }
+      if (onProgress) onProgress(Math.min(i + 40, clean.length), clean.length);
+    }
+    return [...pmids];
+  }
+
+  // PMIDs → Map<pmid, {doi, mesh, title, year, journal}> via efetch XML.
+  async function fetchArticles(pmids, onProgress) {
+    const articles = new Map();
+    const ids = [...new Set((pmids || []).filter(Boolean))];
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      try {
+        const res = await _throttledFetch(
+          `${BASE}/efetch.fcgi?db=pubmed&retmode=xml&id=${chunk.join(',')}`
+        );
+        const xml = new DOMParser().parseFromString(await res.text(), 'text/xml');
+        for (const art of xml.querySelectorAll('PubmedArticle')) {
+          const pmid = art.querySelector('MedlineCitation > PMID');
+          if (!pmid) continue;
+          const doiEl = [...art.querySelectorAll('PubmedData ArticleIdList ArticleId')]
+            .find(el => el.getAttribute('IdType') === 'doi');
+          const mesh = [...art.querySelectorAll('MeshHeadingList MeshHeading DescriptorName')]
+            .map(el => el.textContent.trim()).filter(Boolean);
+          const titleEl = art.querySelector('Article > ArticleTitle');
+          const yearEl = art.querySelector('Article JournalIssue PubDate Year');
+          const medlineDateEl = art.querySelector('Article JournalIssue PubDate MedlineDate');
+          const yearFromMedline = medlineDateEl && (medlineDateEl.textContent.match(/\d{4}/) || [])[0];
+          const journalEl = art.querySelector('Article > Journal > Title');
+          articles.set(pmid.textContent.trim(), {
+            doi: RKG.api.normalizeDoi(doiEl ? doiEl.textContent : ''),
+            mesh,
+            title: titleEl ? titleEl.textContent.trim() : null,
+            year: yearEl ? +yearEl.textContent : (yearFromMedline ? +yearFromMedline : null),
+            journal: journalEl ? journalEl.textContent.trim() : null,
+          });
+        }
+      } catch (e) {
+        console.warn('PubMed efetch chunk failed', e);
+      }
+      if (onProgress) onProgress(Math.min(i + 200, ids.length), ids.length);
+    }
+    return articles;
+  }
+
+  return { pmidsByOrcid, pmidsByDois, fetchArticles };
+})();
+
+</script>
+<script>
+// Author search & candidate selection UI.
+
+window.RKG = window.RKG || {};
+
+RKG.search = (function() {
+  'use strict';
+
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => [...document.querySelectorAll(sel)];
+
+  let _candidates = [];
+  let _selectedIds = new Set(); // indices into _candidates
+
+  function init() {
+    $('#search-btn').addEventListener('click', runSearch);
+    ['#author-name', '#author-institution', '#author-specialty', '#author-orcid-input'].forEach(id => {
+      $(id).addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+    });
+    $('#merge-selected-btn').addEventListener('click', () => {
+      if (_selectedIds.size < 2) return;
+      mergeAndSelect([..._selectedIds].map(i => _candidates[i]));
+    });
+    $('#clear-selection-btn').addEventListener('click', () => {
+      _selectedIds = new Set();
+      $$('#candidates-list .candidate-check').forEach(cb => { cb.checked = false; });
+      _updateMergeBtn();
+    });
+  }
+
+  function showStatus(msg, kind = 'info') {
+    const el = $('#status');
+    el.classList.remove('hidden');
+    const cls = kind === 'error' ? 'status-error' : (kind === 'success' ? 'status-success' : 'status-info');
+    el.innerHTML = `<div class="rounded p-3 text-sm ${cls}">${msg}</div>`;
+  }
+  function hideStatus() { $('#status').classList.add('hidden'); }
+
+  function setSearching(on) {
+    $('#search-btn').disabled = on;
+    $('#search-btn-text').innerHTML = on
+      ? '<span class="loader" style="vertical-align: -2px;"></span> Searching'
+      : 'Search';
+  }
+
+  function fmtNum(n) {
+    if (n == null) return '—';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+    return String(n);
+  }
+
+  function _updateMergeBtn() {
+    const n = _selectedIds.size;
+    $('#merge-selected-btn').disabled = n < 2;
+    $('#merge-count').textContent = n;
+  }
+
+  async function runSearch() {
+    const orcid = $('#author-orcid-input').value.trim();
+    const name = $('#author-name').value.trim();
+    const inst = $('#author-institution').value.trim();
+    const specialty = $('#author-specialty').value.trim();
+    const koreaOnly = !!($('#korea-only-chk') && $('#korea-only-chk').checked);
+
+    if (!orcid && !name && !inst && !specialty) {
+      showStatus('Enter at least one of: author name, ORCID, institution, or specialty.', 'error');
+      return;
+    }
+
+    hideStatus();
+    setSearching(true);
+    $('#candidates-section').classList.add('hidden');
+    $('#dashboard').classList.add('hidden');
+
+    try {
+      _candidates = await RKG.api.searchAuthors({ name, institution: inst, specialty, orcid, koreaOnly });
+      if (!_candidates.length) {
+        if (orcid) {
+          showStatus('The ORCID was found, but no author matches all the name/institution/specialty conditions you entered.', 'error');
+        } else if (inst || specialty) {
+          showStatus('No author matches all the name/institution/specialty conditions. Try relaxing them one at a time.', 'error');
+        } else {
+          showStatus('No matching authors found. Check the name spelling or institution keyword.', 'error');
+        }
+        return;
+      }
+      if (orcid && _candidates.length === 1) {
+        selectAuthor(_candidates[0]);
+        return;
+      }
+      renderCandidates();
+    } catch (e) {
+      showStatus(`Search error: ${e.message}`, 'error');
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function renderCandidates() {
+    _selectedIds = new Set();
+    _updateMergeBtn();
+
+    const list = $('#candidates-list');
+    $('#candidate-count').textContent =
+      `${_candidates.length} candidate${_candidates.length === 1 ? '' : 's'}`;
+
+    const resolvedInst = _candidates._resolvedInst || [];
+    const noteEl = $('#inst-filter-note');
+    if (noteEl) {
+      if (resolvedInst.length) {
+        noteEl.innerHTML = `Institution filter applied: <span style="color:#1D7A35;font-weight:500;">${resolvedInst.slice(0, 2).join(', ')}${resolvedInst.length > 2 ? ` +${resolvedInst.length - 2} more` : ''}</span>`;
+        noteEl.classList.remove('hidden');
+      } else {
+        noteEl.classList.add('hidden');
+      }
+    }
+
+    list.innerHTML = _candidates.map((a, i) => {
+      const displayInsts = a._displayInstitutions || a._matchedInstitutions || a._institutions || [];
+      const insts = displayInsts.slice(0, 3).join(' · ') || 'Unknown affiliation';
+      const orcid = a.orcid ? a.orcid.replace('https://orcid.org/', '') : '';
+      const dupCount = (a._duplicateGroupIds || []).length;
+
+      const topicLabels = (a.topics || [])
+        .slice(0, 3)
+        .map(t => t.subfield ? t.subfield.display_name : t.display_name)
+        .filter(Boolean);
+      const conceptLabels = (a.x_concepts || [])
+        .filter(c => c.level === 1)
+        .slice(0, 3)
+        .map(c => c.display_name);
+      const areaLabels = [...new Set(topicLabels.length ? topicLabels : conceptLabels)];
+      const specEvidence = a._specialtyEvidence;
+
+      return `
+        <div class="candidate-card card rounded p-4 relative" data-idx="${i}">
+          <input type="checkbox" class="candidate-check absolute top-3 right-3 w-4 h-4 cursor-pointer" data-idx="${i}">
+          <div class="flex items-start gap-3 mb-1 pr-6">
+            <p class="font-medium text-base flex-1">${a.display_name}</p>
+            ${orcid ? `<span class="mono text-[10px] text-muted whitespace-nowrap">${orcid}</span>` : ''}
+          </div>
+          <p class="text-xs text-muted mb-1">${insts}</p>
+          ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#0071E3;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
+          ${specEvidence ? `<p class="text-xs mb-2" style="color:#1D7A35;">Specialty evidence: ${specEvidence.matchedCount}/${specEvidence.sampleSize} top papers match</p>` : ''}
+          ${dupCount > 1 ? `<p class="text-xs mb-2" style="color:#B25000;">${dupCount} possible duplicate IDs — check to merge if needed</p>` : ''}
+          <div class="flex gap-3 text-xs">
+            <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
+            <span><span class="text-muted">Cited:</span> <span class="mono">${fmtNum(a.cited_by_count)}</span></span>
+            ${a.summary_stats && a.summary_stats.h_index
+                ? `<span><span class="text-muted">h:</span> <span class="mono">${a.summary_stats.h_index}</span></span>`
+                : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    $$('#candidates-list .candidate-card').forEach(el => {
+      el.addEventListener('click', e => {
+        if (e.target.type === 'checkbox') return;
+        selectAuthor(_candidates[+el.dataset.idx]);
+      });
+    });
+
+    $$('#candidates-list .candidate-check').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const idx = +cb.dataset.idx;
+        if (cb.checked) _selectedIds.add(idx); else _selectedIds.delete(idx);
+        _updateMergeBtn();
+      });
+    });
+
+    $('#candidates-section').classList.remove('hidden');
+  }
+
+  const SPIN = '<span class="loader" style="vertical-align:-2px;"></span> ';
+
+  function _normTitle(t) {
+    return (t || '').toLowerCase().replace(/[^a-z0-9가-힣]+/g, ' ').trim();
+  }
+
+  // Stage 3 — PubMed: MeSH enrichment + Medline-only recall (see CLAUDE.md).
+  // Keyed ONLY on ORCID / DOIs — never name search. Returns minimal records
+  // for Medline papers absent from OpenAlex (viz-safe: source.id is null).
+  async function _enrichFromPubmed(works, orcid, orcidEntries, orcidDois) {
+    if (!RKG.pubmed) return [];
+    showStatus(`${SPIN}[3/3] Matching papers against PubMed...`);
+
+    const orcidPmids = new Set(orcidEntries.map(e => e.pmid).filter(Boolean));
+    const pmids = new Set(orcidPmids);
+    if (orcid) {
+      try {
+        for (const id of await RKG.pubmed.pmidsByOrcid(orcid)) pmids.add(id);
+      } catch (e) { console.warn('PubMed ORCID search failed (continuing)', e); }
+    }
+    const dois = works.map(w => w._doi).filter(Boolean);
+    for (const id of await RKG.pubmed.pmidsByDois(dois, (done, total) =>
+      showStatus(`${SPIN}[3/3] Matching DOIs on PubMed... (${done}/${total})`))) pmids.add(id);
+    if (!pmids.size) return [];
+
+    const articles = await RKG.pubmed.fetchArticles([...pmids], (done, total) =>
+      showStatus(`${SPIN}[3/3] Loading MeSH from PubMed... (${done}/${total})`));
+
+    const byDoi = new Map();
+    const byTitleYear = new Map();
+    for (const w of works) {
+      if (w._doi) byDoi.set(w._doi, w);
+      else if (w.title && w.publication_year) byTitleYear.set(`${_normTitle(w.title)}|${w.publication_year}`, w);
+    }
+
+    const medlineOnly = [];
+    for (const [pmid, art] of articles) {
+      const w = (art.doi && byDoi.get(art.doi))
+        || (art.title && art.year && byTitleYear.get(`${_normTitle(art.title)}|${art.year}`));
+      if (w) {
+        w._pmid = pmid;
+        if (art.mesh.length) w.mesh = art.mesh;
+        w._sources.pubmed = true;
+      } else if (orcidPmids.has(pmid) || (art.doi && orcidDois.has(art.doi))) {
+        // Medline-indexed, absent from OpenAlex, confirmed by the author's own
+        // ORCID record — high precision, so it bypasses the criteria filter.
+        medlineOnly.push({
+          id: 'pubmed:' + pmid,
+          doi: art.doi ? 'https://doi.org/' + art.doi : null,
+          _doi: art.doi,
+          _pmid: pmid,
+          title: art.title,
+          publication_year: art.year,
+          cited_by_count: 0,
+          authorships: [],
+          topics: [],
+          concepts: [],
+          primary_location: art.journal ? { source: { id: null, display_name: art.journal } } : null,
+          mesh: art.mesh,
+          _sources: { openalex: false, orcid: true, pubmed: true },
+        });
+      }
+    }
+    return medlineOnly;
+  }
+
+  // 3-stage works retrieval cascade (CLAUDE.md § "3-stage works retrieval pipeline"):
+  // 1) ORCID registry (identity spine) → 2) OpenAlex (metadata engine, required core)
+  // → 3) PubMed (MeSH + Medline recall). Stages 1 and 3 fail soft.
+  async function _loadWorksAndActivate(author, idList) {
+    const orcid = (author.orcid || '').replace(/^https?:\/\/orcid\.org\//, '') || null;
+
+    // ---- Stage 1: ORCID registry ----
+    let orcidEntries = [];
+    if (orcid) {
+      showStatus(`${SPIN}[1/3] Fetching works from the ORCID registry...`);
+      try {
+        orcidEntries = await RKG.api.fetchOrcidWorks(orcid);
+      } catch (e) { console.warn('ORCID stage failed (continuing)', e); }
+    }
+    const orcidDois = new Set(orcidEntries.map(e => e.doi).filter(Boolean));
+
+    // ---- Stage 2: OpenAlex ----
+    const allWorks = [];
+    const byId = new Map();
+    const byDoi = new Map();
+    const addWorks = list => {
+      for (const w of list) {
+        const doi = RKG.api.normalizeDoi(w.doi);
+        if (byId.has(w.id) || (doi && byDoi.has(doi))) continue;
+        w._doi = doi;
+        w._sources = { openalex: true, orcid: !!(doi && orcidDois.has(doi)), pubmed: false };
+        allWorks.push(w);
+        byId.set(w.id, w);
+        if (doi) byDoi.set(doi, w);
+      }
+    };
+    const progress = c => showStatus(`${SPIN}[2/3] Loading works from OpenAlex... (${allWorks.length + c}${idList.length > 1 ? `, merging ${idList.length} IDs` : ''})`);
+    for (const id of idList) {
+      addWorks(await RKG.api.fetchAllWorks(id, progress));
+    }
+    if (orcid) {
+      try {
+        // Catch works under split author IDs not selected in the picker,
+        // then hydrate ORCID-registry DOIs OpenAlex knows but didn't link to this author.
+        addWorks(await RKG.api.fetchWorksByOrcid(orcid, progress));
+        const missing = [...orcidDois].filter(d => !byDoi.has(d));
+        if (missing.length) addWorks(await RKG.api.fetchWorksByDois(missing));
+      } catch (e) { console.warn('OpenAlex ORCID pass failed (continuing)', e); }
+
+      // The ORCID pass can surface works filed under split author IDs the user
+      // didn't merge. Fold those IDs into _mergedIds so role detection, the
+      // coauthor network (no-ego invariant), and criteria filtering all treat
+      // them as the focal author.
+      const focalIdSet = new Set(idList);
+      for (const w of allWorks) {
+        for (const a of (w.authorships || [])) {
+          const aOrcid = a.author && a.author.orcid && a.author.orcid.replace(/^https?:\/\/orcid\.org\//, '');
+          if (aOrcid === orcid && a.author.id) focalIdSet.add(a.author.id);
+        }
+      }
+      if (focalIdSet.size > idList.length) {
+        author._mergedIds = [...focalIdSet];
+        RKG.state.setAuthor(author);
+      }
+    }
+
+    const filteredWorks = RKG.api.filterWorksBySearchCriteria
+      ? RKG.api.filterWorksBySearchCriteria(allWorks, author)
+      : allWorks;
+    if (allWorks.length && !filteredWorks.length) {
+      throw new Error('Works were loaded, but none match the institution/specialty conditions you entered.');
+    }
+
+    // ---- Stage 3: PubMed (non-fatal) ----
+    let finalWorks = filteredWorks;
+    try {
+      const medlineOnly = await _enrichFromPubmed(filteredWorks, orcid, orcidEntries, orcidDois);
+      if (medlineOnly.length) finalWorks = [...filteredWorks, ...medlineOnly];
+    } catch (e) { console.warn('PubMed stage failed (continuing)', e); }
+
+    const sourceIds = new Set();
+    for (const w of finalWorks) {
+      const src = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      if (src) sourceIds.add(src);
+    }
+
+    showStatus(`${SPIN}Fetching IF data for ${sourceIds.size} journals...`);
+    const stats = await RKG.api.fetchSourceStats(sourceIds);
+
+    RKG.state.setWorks(finalWorks);
+    RKG.state.setSourceStats(stats);
+    hideStatus();
+    RKG.dashboard.activate();
+  }
+
+  async function selectAuthor(author) {
+    $('#candidates-section').classList.add('hidden');
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${author.display_name}...`);
+    RKG.state.setAuthor(author);
+    try {
+      await _loadWorksAndActivate(author, [author.id]);
+    } catch (e) {
+      showStatus(`Data loading failed: ${e.message}`, 'error');
+    }
+  }
+
+  async function mergeAndSelect(authors) {
+    $('#candidates-section').classList.add('hidden');
+    const merged = {
+      id: 'merged:' + authors.map(a => a.id).join(','),
+      display_name: authors[0].display_name + ` (${authors.length} IDs merged)`,
+      _institutions: [...new Set(authors.flatMap(a => a._institutions))],
+      _displayInstitutions: [...new Set(authors.flatMap(a => a._displayInstitutions || a._institutions))],
+      _matchedInstitutions: [...new Set(authors.flatMap(a => a._matchedInstitutions || []))],
+      _mergedIds: authors.map(a => a.id),
+      works_count: authors.reduce((s, a) => s + (a.works_count || 0), 0),
+      cited_by_count: authors.reduce((s, a) => s + (a.cited_by_count || 0), 0),
+      orcid: (authors.find(a => a.orcid) || {}).orcid || null,
+      _searchCriteria: authors[0]._searchCriteria || null,
+    };
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${merged.display_name}...`);
+    RKG.state.setAuthor(merged);
+    try {
+      await _loadWorksAndActivate(merged, merged._mergedIds);
+    } catch (e) {
+      showStatus(`Data loading failed: ${e.message}`, 'error');
+    }
+  }
+
+  return { init };
+})();
+
+</script>
+<script>
+// Bubble timeline (career lifeline). Chart.js bubble chart.
+// X = year, Y = journal (sorted by IF), size = citations, color = topic,
+// border/opacity = authorship role (first / senior / middle).
+
+window.RKG = window.RKG || {};
+
+RKG.bubbleTimeline = (function() {
+  'use strict';
+
+  if (typeof Chart !== 'undefined' && Chart.defaults && Chart.defaults.font) {
+    Chart.defaults.font.family = 'Arial, "Helvetica Neue", Helvetica, "Segoe UI", system-ui, sans-serif';
+    Chart.defaults.font.size = 11;
+    Chart.defaults.font.weight = '400';
+    Chart.defaults.color = '#6E6E73';
+  }
+  const TICK_FONT = { family: 'Arial, "Helvetica Neue", Helvetica, sans-serif', size: 11, weight: '400' };
+
+  const TOPIC_PALETTE = [
+    '#0071E3', // blue
+    '#248A3D', // green
+    '#B25000', // orange
+    '#8944AB', // purple
+    '#0092A8', // teal
+    '#D70015', // red
+    '#5856D6', // indigo
+  ];
+  const OTHER_COLOR = '#86868B';
+  // Vertical scroll instead of a journal cap: the chart box grows with the
+  // journal count (ROW_H px per journal) inside the fixed-height #bubble-scroll.
+  const ROW_H = 28;
+  const MIN_BOX_H = 540;
+  const AXIS_PAD_H = 90; // top padding + x-axis label area
+
+  let _chart = null;
+  let _journalsList = [];
+  let _topicMap = new Map();
+  let _tooltipEl = null;
+  let _tooltipHideTimer = null;
+
+  function init() {
+    RKG.state.subscribe(_render);
+    document.addEventListener('rkg:tab-shown', e => {
+      if (e.detail.tab === 'bubble' && _chart) _chart.resize();
+    });
+    // Initial render if state already has an author (called during dashboard.activate)
+    if (RKG.state.get().author) _render();
+  }
+
+  // ----- color utilities -----
+
+  function _hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function _darken(hex, factor = 0.7) {
+    const r = Math.round(parseInt(hex.slice(1, 3), 16) * factor);
+    const g = Math.round(parseInt(hex.slice(3, 5), 16) * factor);
+    const b = Math.round(parseInt(hex.slice(5, 7), 16) * factor);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  // ----- data shaping -----
+
+  function _buildJournalsList(works, sourceStats) {
+    const counts = new Map();
+    for (const w of works) {
+      const sid = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      if (!sid) continue;
+      counts.set(sid, (counts.get(sid) || 0) + 1);
+    }
+    const entries = [...counts.entries()].map(([sid, count]) => {
+      const stat = sourceStats.get(sid) || {};
+      return {
+        sid, count,
+        name: stat.display_name || 'Unknown',
+        if_2yr: stat.if_2yr || 0,
+      };
+    });
+    // Sort by IF descending (top journals on top), ties broken by paper count.
+    entries.sort((a, b) => (b.if_2yr - a.if_2yr) || (b.count - a.count));
+    return entries;
+  }
+
+  function _buildTopicMap(works) {
+    const counts = new Map();
+    for (const w of works) {
+      const t = RKG.state.getPrimaryTopic(w);
+      if (t) counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    const top = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, TOPIC_PALETTE.length);
+    const map = new Map();
+    top.forEach(([name], i) => map.set(name, TOPIC_PALETTE[i]));
+    return map;
+  }
+
+  // Normalize bubble radius against the max citations in the current filtered set
+  // so relative size differences are always visible regardless of absolute scale.
+  function _bubbleRadius(cites, role, maxCites) {
+    const MIN_R = 3.5, MAX_R = 32;
+    const r = maxCites > 0
+      ? MIN_R + Math.sqrt(cites / maxCites) * (MAX_R - MIN_R)
+      : MIN_R;
+    return role === 'middle' ? r * 0.6 : r;
+  }
+
+  function _styleForRole(color, role) {
+    if (role === 'first') {
+      return { bg: _hexToRgba(color, 0.18), border: color, borderWidth: 2.5, pointStyle: 'circle' };
+    } else if (role === 'senior') {
+      return { bg: _hexToRgba(color, 0.75), border: _darken(color, 0.7), borderWidth: 1.5, pointStyle: 'star' };
+    } else {
+      return { bg: _hexToRgba(color, 0.35), border: _hexToRgba(color, 0.5), borderWidth: 0.5, pointStyle: 'triangle' };
+    }
+  }
+
+  // ----- legend -----
+
+  function _renderLegend() {
+    const el = document.getElementById('bubble-legend');
+    const topicHTML = [..._topicMap.entries()].map(([name, color]) => `
+      <span class="flex items-center gap-1.5">
+        <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;"></span>
+        <span class="truncate" style="max-width:14ch;" title="${name}">${name}</span>
+      </span>
+    `).join('');
+
+    const roleHTML = `
+      <span class="flex items-center gap-1.5 ml-3 pl-3 border-l rule">
+        <span style="width:12px;height:12px;border-radius:50%;border:2.5px solid #0071E3;background:rgba(0,113,227,0.2);display:inline-block;box-sizing:border-box;flex-shrink:0;"></span>
+        <span class="text-muted">First author</span>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <svg width="13" height="13" viewBox="0 0 13 13" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
+          <polygon points="6.5,0.5 7.9,4.4 12.2,4.8 9.1,7.5 10.1,11.8 6.5,9.5 2.9,11.8 3.9,7.5 0.8,4.8 5.1,4.4" fill="#0071E3"/>
+        </svg>
+        <span class="text-muted">Last author</span>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <svg width="11" height="11" viewBox="0 0 11 11" style="display:inline-block;flex-shrink:0;vertical-align:middle;">
+          <polygon points="5.5,0.5 10.5,10.5 0.5,10.5" fill="rgba(0,113,227,0.45)" stroke="rgba(0,113,227,0.65)" stroke-width="0.8"/>
+        </svg>
+        <span class="text-muted">Middle author</span>
+      </span>
+    `;
+
+    el.innerHTML = topicHTML + roleHTML;
+  }
+
+  // ----- sticky external tooltip -----
+
+  function _ensureTooltip(container) {
+    if (_tooltipEl && _tooltipEl.isConnected) return _tooltipEl;
+    _tooltipEl = document.createElement('div');
+    Object.assign(_tooltipEl.style, {
+      position: 'absolute', pointerEvents: 'auto', zIndex: '100',
+      background: 'rgba(255,255,255,0.97)', border: '1px solid #D2D2D7',
+      padding: '10px 13px', borderRadius: '5px', fontSize: '11.5px',
+      lineHeight: '1.6', maxWidth: '320px', display: 'none', opacity: '1',
+      fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif',
+      fontFeatureSettings: 'normal', fontVariant: 'normal',
+      color: '#1D1D1F',
+      boxShadow: '0 3px 14px rgba(0,0,0,0.1)',
+      transition: 'opacity 0.12s',
+    });
+    _tooltipEl.addEventListener('mouseenter', () => {
+      if (_tooltipHideTimer) { clearTimeout(_tooltipHideTimer); _tooltipHideTimer = null; }
+    });
+    _tooltipEl.addEventListener('mouseleave', () => {
+      _tooltipEl.style.display = 'none';
+    });
+    container.appendChild(_tooltipEl);
+    return _tooltipEl;
+  }
+
+  function _externalTooltip(context) {
+    const { chart, tooltip } = context;
+    const el = _ensureTooltip(chart.canvas.parentNode);
+
+    if (tooltip.opacity === 0) {
+      if (!_tooltipHideTimer) {
+        _tooltipHideTimer = setTimeout(() => {
+          if (_tooltipEl) _tooltipEl.style.display = 'none';
+          _tooltipHideTimer = null;
+        }, 250);
+      }
+      return;
+    }
+    if (_tooltipHideTimer) { clearTimeout(_tooltipHideTimer); _tooltipHideTimer = null; }
+    if (!tooltip.dataPoints || !tooltip.dataPoints.length) return;
+
+    const p = tooltip.dataPoints[0].raw;
+    if (!p || !p._work) return;
+    const w = p._work;
+    const journal = (_journalsList[p.y] || {}).name || '';
+    const roleLabel = { first: 'First author', senior: 'Last author', middle: 'Middle author' }[p._role] || '';
+    const title = (w.title || 'Untitled').slice(0, 100);
+    const doi = w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}` : null;
+
+    const AF = 'font-family:Arial,"Helvetica Neue",Helvetica,sans-serif;font-feature-settings:normal;font-variant:normal;';
+    el.innerHTML = `
+      <div style="${AF}font-weight:600;line-height:1.4;margin-bottom:5px;">
+        ${doi
+          ? `<a href="${doi}" target="_blank" rel="noopener" style="${AF}color:#0071E3;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${title}</a>`
+          : `<span style="${AF}">${title}</span>`}
+      </div>
+      <div style="${AF}color:#515154;margin-bottom:3px;">${journal} · ${p.x}</div>
+      <div style="${AF}color:#515154;">${w.cited_by_count || 0} citations · ${roleLabel}${p._topic ? ' · ' + p._topic : ''}</div>
+      ${doi ? `<div style="${AF}color:#AEAEB2;font-size:10px;margin-top:4px;">↗ Click to open paper</div>` : ''}
+    `;
+
+    el.style.display = 'block';
+    const containerW = chart.canvas.parentNode.offsetWidth;
+    let left = tooltip.caretX + 16;
+    if (left + 330 > containerW) left = tooltip.caretX - 338;
+    if (left < 0) left = 4;
+    el.style.left = left + 'px';
+    el.style.top = Math.max(0, tooltip.caretY - 14) + 'px';
+  }
+
+  // ----- main render -----
+
+  function _render() {
+    const s = RKG.state.get();
+    if (!s.author) return;
+
+    const works = RKG.state.getFilteredWorks();
+    _journalsList = _buildJournalsList(works, s.sourceStats);
+    _topicMap = _buildTopicMap(works);
+
+    const journalIdx = new Map(_journalsList.map((j, i) => [j.sid, i]));
+    const maxCites = works.reduce((m, w) => Math.max(m, w.cited_by_count || 0), 1);
+
+    const points = [];
+    for (const w of works) {
+      const sid = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      if (!sid || !journalIdx.has(sid)) continue;
+
+      const role = RKG.state.getAuthorshipRole(w);
+      if (role === 'none') continue;
+
+      const topic = RKG.state.getPrimaryTopic(w);
+      const color = _topicMap.get(topic) || OTHER_COLOR;
+      const r = _bubbleRadius(w.cited_by_count || 0, role, maxCites);
+      const style = _styleForRole(color, role);
+
+      points.push({
+        x: w.publication_year,
+        y: journalIdx.get(sid),
+        r,
+        _bg: style.bg, _border: style.border, _borderWidth: style.borderWidth,
+        _pointStyle: style.pointStyle,
+        _work: w, _role: role, _topic: topic, _color: color,
+      });
+    }
+
+    _renderLegend();
+    _renderChart(points);
+  }
+
+  function _renderChart(points) {
+    const ctx = document.getElementById('bubble-canvas');
+    if (_chart) { _chart.destroy(); _chart = null; }
+    if (_tooltipEl) { _tooltipEl.remove(); _tooltipEl = null; }
+    if (_tooltipHideTimer) { clearTimeout(_tooltipHideTimer); _tooltipHideTimer = null; }
+
+    // Grow the chart box with the journal count; #bubble-scroll scrolls the rest.
+    const box = document.getElementById('bubble-chart-box');
+    if (box) {
+      box.style.height = Math.max(MIN_BOX_H, _journalsList.length * ROW_H + AXIS_PAD_H) + 'px';
+    }
+
+    const s = RKG.state.get();
+    const xMin = s.filteredYearMin - 0.6;
+    const xMax = s.filteredYearMax + 0.6;
+
+    _chart = new Chart(ctx, {
+      type: 'bubble',
+      data: {
+        datasets: [{
+          data: points,
+          backgroundColor: points.map(p => p._bg),
+          borderColor: points.map(p => p._border),
+          borderWidth: points.map(p => p._borderWidth),
+          pointStyle: points.map(p => p._pointStyle),
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 24, right: 16, bottom: 8, left: 4 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: false,
+            external: _externalTooltip,
+          },
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            min: xMin, max: xMax,
+            ticks: { stepSize: 1, callback: v => Math.round(v), color: '#6E6E73', font: TICK_FONT },
+            grid: { color: 'rgba(0,0,0,0.04)' },
+          },
+          y: {
+            // Show highest-IF journal (index 0) at the top (Chart.js default puts 0 at the bottom)
+            reverse: true,
+            min: -0.7, max: Math.max(_journalsList.length - 0.2, 0.5),
+            ticks: {
+              stepSize: 1,
+              color: '#6E6E73',
+              font: TICK_FONT,
+              padding: 6,
+              callback: v => {
+                const j = _journalsList[v];
+                if (!j) return '';
+                const cleaned = (j.name || '').replace(/^[^\w가-힣\(\[]+/u, '').trim();
+                const name = cleaned.length > 28 ? cleaned.slice(0, 26) + '…' : cleaned;
+                return j.if_2yr ? `${name} · ${j.if_2yr.toFixed(1)}` : name;
+              },
+            },
+            grid: { color: 'rgba(0,0,0,0.04)' },
+          },
+        },
+        onClick: (evt, items) => {
+          if (!items.length) return;
+          const idx = items[0].index;
+          const p = _chart.data.datasets[0].data[idx];
+          const w = p._work;
+          if (w.doi) {
+            const doi = w.doi.replace('https://doi.org/', '');
+            window.open(`https://doi.org/${doi}`, '_blank');
+          }
+        },
+      },
+    });
+  }
+
+  return { init };
+})();
+
+</script>
+<script>
+// Co-author co-occurrence network. D3 force-directed layout.
+// Nodes = co-authors (NOT including focal author).
+// Edges = co-authors who appeared on the same paper.
+// Click a node → set selectedCoauthor (filters bubble timeline).
+
+window.RKG = window.RKG || {};
+
+RKG.coauthorNetwork = (function() {
+  'use strict';
+
+  let _currentNodes = [];
+  let _currentEdges = [];
+
+  const W = 800, H = 600;
+
+  const TOPIC_PALETTE = [
+    '#0071E3', '#248A3D', '#B25000', '#8944AB',
+    '#0092A8', '#D70015', '#5856D6',
+  ];
+  const OTHER_COLOR = '#86868B';
+
+  let _container = null;
+  let _svg = null;
+  let _g = null;
+  let _gEdges = null;
+  let _gNodes = null;
+  let _gLabels = null;
+  let _simulation = null;
+
+  // Track state to decide rebuild vs selection-only update.
+  let _prev = {
+    author: null, works: null,
+    yearMin: null, yearMax: null,
+    role: null, minPapers: null,
+  };
+
+  function init() {
+    _container = document.getElementById('network-container');
+    _setupSVG();
+    RKG.state.subscribe(_onStateChange);
+    document.addEventListener('rkg:tab-shown', e => {
+      if (e.detail.tab === 'network') _resize();
+    });
+    window.addEventListener('resize', _resize);
+    // Initial render if state already has an author (called during dashboard.activate)
+    if (RKG.state.get().author) _onStateChange(RKG.state.get());
+  }
+
+  function _setupSVG() {
+    _svg = d3.select(_container).append('svg')
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet');
+
+    _g = _svg.append('g');
+    _gEdges = _g.append('g').attr('class', 'edges');
+    _gNodes = _g.append('g').attr('class', 'nodes');
+    _gLabels = _g.append('g').attr('class', 'labels');
+
+    _svg.call(d3.zoom()
+      .scaleExtent([0.3, 3])
+      .on('zoom', e => _g.attr('transform', e.transform))
+    );
+  }
+
+  function _resize() {
+    // viewBox handles scaling; nothing to do unless we want to refit.
+  }
+
+  function _onStateChange(s) {
+    if (!s.author) return;
+
+    const needsRebuild = (
+      s.author !== _prev.author ||
+      s.works !== _prev.works ||
+      s.filteredYearMin !== _prev.yearMin ||
+      s.filteredYearMax !== _prev.yearMax ||
+      s.authorshipRole !== _prev.role ||
+      s.minCoauthorPapers !== _prev.minPapers
+    );
+
+    _prev = {
+      author: s.author, works: s.works,
+      yearMin: s.filteredYearMin, yearMax: s.filteredYearMax,
+      role: s.authorshipRole, minPapers: s.minCoauthorPapers,
+    };
+
+    if (needsRebuild) {
+      _build();
+    } else {
+      _updateSelection();
+    }
+  }
+
+  // ----- network works (year + role filters, NOT coauthor filter) -----
+
+  function _networkWorks() {
+    const s = RKG.state.get();
+    return s.works.filter(w => {
+      const y = w.publication_year;
+      if (!y || y < s.filteredYearMin || y > s.filteredYearMax) return false;
+      if (s.authorshipRole !== 'all' && RKG.state.getAuthorshipRole(w) !== s.authorshipRole) return false;
+      return true;
+    });
+  }
+
+  // ----- graph construction -----
+
+  function _buildGraph(works, focalIds, minPapers) {
+    const nodeInfo = new Map();   // id -> {name, inst, count, topicCounts}
+    const pairs = new Map();      // "id1__id2" -> count
+
+    for (const w of works) {
+      const others = (w.authorships || [])
+        .filter(a => a.author && a.author.id && !focalIds.includes(a.author.id))
+        .map(a => ({
+          id: a.author.id,
+          name: a.author.display_name,
+          inst: (a.institutions && a.institutions[0] && a.institutions[0].display_name) || '',
+        }));
+
+      const topic = RKG.state.getPrimaryTopic(w);
+
+      // Count individuals
+      for (const o of others) {
+        if (!nodeInfo.has(o.id)) {
+          nodeInfo.set(o.id, { id: o.id, name: o.name, inst: o.inst, count: 0, topicCounts: new Map() });
+        }
+        const info = nodeInfo.get(o.id);
+        info.count++;
+        if (topic) info.topicCounts.set(topic, (info.topicCounts.get(topic) || 0) + 1);
+      }
+
+      // Count pairs
+      const ids = others.map(o => o.id);
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          const key = [ids[i], ids[j]].sort().join('__');
+          pairs.set(key, (pairs.get(key) || 0) + 1);
+        }
+      }
+    }
+
+    // Filter nodes by min papers threshold
+    const visibleNodes = [...nodeInfo.values()].filter(n => n.count >= minPapers);
+    const visibleIds = new Set(visibleNodes.map(n => n.id));
+
+    // Assign primary topic per node
+    for (const n of visibleNodes) {
+      let best = null, max = 0;
+      for (const [k, v] of n.topicCounts) {
+        if (v > max) { max = v; best = k; }
+      }
+      n.primaryTopic = best;
+    }
+
+    // Build topic → color mapping (top N topics get palette colors)
+    const topicTotals = new Map();
+    for (const n of visibleNodes) {
+      if (n.primaryTopic) topicTotals.set(n.primaryTopic, (topicTotals.get(n.primaryTopic) || 0) + n.count);
+    }
+    const topicColor = new Map();
+    [...topicTotals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, TOPIC_PALETTE.length)
+      .forEach(([t], i) => topicColor.set(t, TOPIC_PALETTE[i]));
+
+    for (const n of visibleNodes) {
+      n.color = topicColor.get(n.primaryTopic) || OTHER_COLOR;
+      n.r = Math.min(28, 8 + Math.sqrt(n.count) * 3);
+    }
+
+    // Build edges only between visible nodes
+    const edges = [];
+    for (const [key, value] of pairs) {
+      const [s, t] = key.split('__');
+      if (visibleIds.has(s) && visibleIds.has(t)) {
+        edges.push({ source: s, target: t, value });
+      }
+    }
+
+    return { nodes: visibleNodes, edges, topicColor };
+  }
+
+  // ----- build & render -----
+
+  function _build() {
+    const s = RKG.state.get();
+    const works = _networkWorks();
+    const focalIds = s.author._mergedIds || [s.author.id];
+    const { nodes, edges, topicColor } = _buildGraph(works, focalIds, s.minCoauthorPapers);
+    _currentNodes = nodes;
+    _currentEdges = edges;
+
+    _updateNetworkStats(nodes.length, edges.length, topicColor);
+    _renderNetworkLegend(topicColor);
+
+    if (_simulation) _simulation.stop();
+    _gEdges.selectAll('*').remove();
+    _gNodes.selectAll('*').remove();
+    _gLabels.selectAll('*').remove();
+
+    if (!nodes.length) {
+      _gLabels.append('text')
+        .attr('x', W / 2).attr('y', H / 2).attr('text-anchor', 'middle')
+        .attr('fill', '#6E6E73').attr('font-size', 14)
+        .text('No co-authors to display (try lowering the minimum joint papers)');
+      return;
+    }
+
+    const linkSel = _gEdges.selectAll('line')
+      .data(edges).enter().append('line')
+      .attr('class', 'coauthor-edge')
+      .attr('stroke', d => {
+        const a = nodes.find(n => n.id === d.source);
+        const b = nodes.find(n => n.id === d.target);
+        return (a && b && a.color === b.color) ? a.color : OTHER_COLOR;
+      })
+      .attr('stroke-opacity', 0.4)
+      .attr('stroke-width', d => Math.min(4, 0.8 + Math.log2(d.value + 1) * 0.7))
+      .attr('stroke-linecap', 'round');
+
+    const nodeSel = _gNodes.selectAll('circle')
+      .data(nodes).enter().append('circle')
+      .attr('class', 'coauthor-node')
+      .attr('r', d => d.r)
+      .attr('fill', d => d.color)
+      .attr('stroke', d => _darken(d.color, 0.6))
+      .attr('stroke-width', 1.5)
+      .on('click', (event, d) => {
+        const cur = RKG.state.get().selectedCoauthor;
+        if (cur === d.id) {
+          RKG.state.setSelectedCoauthor(null);
+        } else {
+          RKG.state.setSelectedCoauthor(d.id);
+          _showSidebar(d);
+        }
+      })
+      .call(d3.drag()
+        .on('start', (event, d) => {
+          if (!event.active) _simulation.alphaTarget(0.3).restart();
+          d.fx = d.x; d.fy = d.y;
+        })
+        .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
+        .on('end', (event, d) => {
+          if (!event.active) _simulation.alphaTarget(0);
+          d.fx = null; d.fy = null;
+        }));
+
+    nodeSel.append('title').text(d => `${d.name}\n${d.inst || ''}\n${d.count} joint papers${d.primaryTopic ? '\nTopic: ' + d.primaryTopic : ''}`);
+
+    const labelSel = _gLabels.selectAll('text')
+      .data(nodes).enter().append('text')
+      .attr('class', 'coauthor-label')
+      .attr('text-anchor', 'middle')
+      .attr('font-size', d => Math.max(5, Math.min(7, 4.6 + d.r * 0.056)))
+      .text(d => d.name);
+
+    _simulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(edges).id(d => d.id).distance(d => 110 - Math.min(60, d.value * 6)).strength(0.4))
+      .force('charge', d3.forceManyBody().strength(d => -180 - d.r * 6))
+      .force('center', d3.forceCenter(W / 2, H / 2))
+      .force('collide', d3.forceCollide().radius(d => d.r + 6).iterations(2))
+      .on('tick', () => {
+        linkSel
+          .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+        nodeSel.attr('cx', d => d.x).attr('cy', d => d.y);
+        labelSel.attr('x', d => d.x).attr('y', d => d.y + d.r + 12);
+      });
+
+    _updateSelection();
+  }
+
+  // ----- selection update (no rebuild) -----
+
+  function _updateSelection() {
+    const sel = RKG.state.get().selectedCoauthor;
+
+    const nodes = _gNodes.selectAll('circle');
+    const labels = _gLabels.selectAll('text');
+    const edges = _gEdges.selectAll('line');
+
+    if (!sel) {
+      const sidebar = document.getElementById('network-sidebar');
+      if (sidebar) sidebar.classList.add('hidden');
+      nodes.classed('faded', false).classed('selected', false);
+      labels.classed('faded', false);
+      edges.classed('faded', false);
+      return;
+    }
+
+    // Find connected node IDs
+    const connected = new Set([sel]);
+    edges.each(d => {
+      const sId = d.source.id || d.source;
+      const tId = d.target.id || d.target;
+      if (sId === sel) connected.add(tId);
+      if (tId === sel) connected.add(sId);
+    });
+
+    nodes
+      .classed('selected', d => d.id === sel)
+      .classed('faded', d => !connected.has(d.id));
+
+    labels.classed('faded', d => !connected.has(d.id));
+
+    edges.classed('faded', d => {
+      const sId = d.source.id || d.source;
+      const tId = d.target.id || d.target;
+      return sId !== sel && tId !== sel;
+    });
+  }
+
+  // ----- helpers -----
+
+  function _showSidebar(node) {
+    const el = document.getElementById('network-sidebar');
+    if (!el) return;
+
+    // Edges connected to this node (after D3 resolves IDs to objects)
+    const connected = _currentEdges
+      .filter(e => {
+        const sId = typeof e.source === 'object' ? e.source.id : e.source;
+        const tId = typeof e.target === 'object' ? e.target.id : e.target;
+        return sId === node.id || tId === node.id;
+      })
+      .map(e => {
+        const sId = typeof e.source === 'object' ? e.source.id : e.source;
+        const tId = typeof e.target === 'object' ? e.target.id : e.target;
+        const otherId = sId === node.id ? tId : sId;
+        const other = _currentNodes.find(n => n.id === otherId);
+        return { name: other ? other.name : '?', count: e.value };
+      })
+      .sort((a, b) => b.count - a.count);
+
+    el.classList.remove('hidden');
+    el.innerHTML = `
+      <div style="padding:12px 14px; border-bottom:1px solid var(--rule);">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:4px; margin-bottom:6px;">
+          <p style="font-weight:600; font-size:13px; line-height:1.35;">${node.name}</p>
+          <button data-close-sidebar style="background:none; border:none; cursor:pointer; color:var(--ink-muted); font-size:18px; line-height:1; flex-shrink:0; padding:0 2px;">&times;</button>
+        </div>
+        ${node.inst ? `<p style="font-size:11px; color:var(--ink-muted); margin-bottom:4px; line-height:1.4;">${node.inst}</p>` : ''}
+        <p style="font-size:11px; color:var(--ink-muted);"><strong style="color:var(--ink);">${node.count}</strong> joint papers with the focal author</p>
+      </div>
+      <div style="padding:10px 14px;">
+        <p style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-muted); margin-bottom:8px;">Shared co-authors</p>
+        ${connected.length ? connected.map((c, i) => `
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-top:1px solid var(--rule);">
+            <span style="font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:152px;" title="${c.name}">${i + 1}. ${c.name}</span>
+            <span style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--ink-muted); flex-shrink:0; margin-left:4px;">${c.count}</span>
+          </div>`).join('') : '<p style="font-size:11px; color:var(--ink-muted);">None</p>'}
+      </div>`;
+
+    el.querySelector('[data-close-sidebar]').addEventListener('click', () => {
+      RKG.state.setSelectedCoauthor(null);
+    });
+  }
+
+  function _renderNetworkLegend(topicColor) {
+    // HTML overlay — always at true bottom-right of the container, regardless of SVG scaling
+    const existing = _container.querySelector('.network-legend-html');
+    if (existing) existing.remove();
+    if (!topicColor.size) return;
+
+    const entries = [...topicColor.entries()];
+    const div = document.createElement('div');
+    div.className = 'network-legend-html';
+    Object.assign(div.style, {
+      position: 'absolute', right: '0', bottom: '0',
+      zIndex: '10', pointerEvents: 'none',
+      background: 'rgba(255,255,255,0.96)',
+      border: '1px solid #D2D2D7',
+      borderRadius: '5px 0 0 0',
+      padding: '7px 10px 8px',
+      fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif',
+      fontFeatureSettings: 'normal',
+      fontVariant: 'normal',
+      fontSize: '10.5px',
+      color: '#1D1D1F',
+      lineHeight: '1.85',
+      minWidth: '160px',
+    });
+
+    const FS = 'font-family:Arial,"Helvetica Neue",Helvetica,sans-serif;font-feature-settings:normal;font-variant:normal;';
+    let html = `<div style="${FS}font-size:9px;font-weight:700;color:#86868B;letter-spacing:0.06em;margin-bottom:4px;">TOPIC</div>`;
+    entries.forEach(([topic, color]) => {
+      html += `<div style="display:flex;align-items:center;gap:6px;">
+        <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0;display:inline-block;"></span>
+        <span style="${FS}font-size:10.5px;">${topic.length > 23 ? topic.slice(0, 21) + '…' : topic}</span>
+      </div>`;
+    });
+    div.innerHTML = html;
+    _container.appendChild(div);
+  }
+
+  function _darken(hex, factor = 0.7) {
+    const r = Math.round(parseInt(hex.slice(1, 3), 16) * factor);
+    const g = Math.round(parseInt(hex.slice(3, 5), 16) * factor);
+    const b = Math.round(parseInt(hex.slice(5, 7), 16) * factor);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function _updateNetworkStats(nNodes, nEdges, topicColor) {
+    const el = document.getElementById('network-stats');
+    if (el) el.textContent = `${nNodes} co-authors · ${nEdges} edges · ${topicColor.size} clusters`;
+  }
+
+  return { init };
+})();
+
+</script>
+<script>
+// Topic streamgraph. D3 stacked area, wiggle offset.
+// X = year, stacked areas = top 8 topics by total paper count.
+// Hover: vertical cursor line + tooltip (topic, year, count, %).
+// Click a stream to isolate it; click again to reset.
+// Responds to all state filters (year, role, coauthor).
+
+window.RKG = window.RKG || {};
+
+RKG.streamgraph = (function() {
+  'use strict';
+
+  const MAX_TOPICS = 8;
+  const TOPIC_PALETTE = [
+    '#0071E3', '#248A3D', '#B25000', '#8944AB',
+    '#0092A8', '#D70015', '#5856D6', '#C7256E',
+  ];
+  const FADE_OPACITY = 0.08;
+  const ACTIVE_OPACITY = 0.88;
+
+  let _container = null;
+  let _tooltip = null;
+  let _selectedTopic = null;    // locally selected (click-to-isolate), NOT in global state
+
+  let _prev = { works: null, yearMin: null, yearMax: null, role: null, coauthor: null };
+
+  function init() {
+    _container = document.getElementById('streamgraph-container');
+    if (!_container) return;
+
+    _tooltip = document.createElement('div');
+    Object.assign(_tooltip.style, {
+      position: 'fixed', pointerEvents: 'none', display: 'none',
+      background: 'rgba(255,255,255,0.97)', border: '1px solid #D2D2D7',
+      padding: '9px 12px', borderRadius: '4px', fontSize: '12px',
+      lineHeight: '1.6', zIndex: '1000', maxWidth: '240px',
+      fontFamily: "Arial, sans-serif",
+      color: '#1D1D1F', boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+    });
+    document.body.appendChild(_tooltip);
+
+    RKG.state.subscribe(_onStateChange);
+    document.addEventListener('rkg:tab-shown', e => {
+      if (e.detail.tab === 'streamgraph') _render();
+    });
+    if (RKG.state.get().author) _render();
+  }
+
+  function _onStateChange(s) {
+    if (!s.author) return;
+    const changed = (
+      s.works !== _prev.works ||
+      s.filteredYearMin !== _prev.yearMin ||
+      s.filteredYearMax !== _prev.yearMax ||
+      s.authorshipRole !== _prev.role ||
+      s.selectedCoauthor !== _prev.coauthor
+    );
+    _prev = {
+      works: s.works, yearMin: s.filteredYearMin, yearMax: s.filteredYearMax,
+      role: s.authorshipRole, coauthor: s.selectedCoauthor,
+    };
+    if (changed) {
+      _selectedTopic = null;  // reset isolation on data change
+      _render();
+    }
+  }
+
+  function _render() {
+    if (!_container) return;
+    const s = RKG.state.get();
+    if (!s.author) return;
+
+    d3.select(_container).selectAll('svg, .sg-empty').remove();
+
+    const works = RKG.state.getFilteredWorks();
+    const W = _container.clientWidth || 700;
+    const H = _container.clientHeight || 400;
+
+    // --- Top topics ---
+    const topicTotals = new Map();
+    for (const w of works) {
+      const t = RKG.state.getPrimaryTopic(w);
+      if (t && w.publication_year) {
+        topicTotals.set(t, (topicTotals.get(t) || 0) + 1);
+      }
+    }
+
+    if (!topicTotals.size) {
+      const div = document.createElement('div');
+      div.className = 'sg-empty';
+      Object.assign(div.style, {
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100%', fontSize: '13px', color: 'var(--ink-muted)',
+      });
+      div.textContent = 'No topic data (check the year range or filters)';
+      _container.appendChild(div);
+      return;
+    }
+
+    const topTopics = [...topicTotals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_TOPICS)
+      .map(([t]) => t);
+
+    const topicColor = new Map(topTopics.map((t, i) => [t, TOPIC_PALETTE[i]]));
+
+    // --- Year matrix ---
+    const yearMin = s.filteredYearMin;
+    const yearMax = s.filteredYearMax;
+    const years = [];
+    for (let y = yearMin; y <= yearMax; y++) years.push(y);
+
+    const yearData = new Map(years.map(y => {
+      const row = { year: y };
+      for (const t of topTopics) row[t] = 0;
+      return [y, row];
+    }));
+
+    for (const w of works) {
+      const t = RKG.state.getPrimaryTopic(w);
+      if (!t || !topicColor.has(t) || !w.publication_year) continue;
+      const row = yearData.get(w.publication_year);
+      if (row) row[t]++;
+    }
+
+    const data = years.map(y => yearData.get(y));
+
+    // --- D3 stack ---
+    const stack = d3.stack()
+      .keys(topTopics)
+      .offset(d3.stackOffsetWiggle)
+      .order(d3.stackOrderInsideOut);
+
+    const series = stack(data);
+
+    // --- Layout ---
+    const cols = Math.min(2, topTopics.length);
+    const legendRows = Math.ceil(topTopics.length / cols);
+    const LEGEND_H = legendRows * 26 + 14;
+    const M = { top: 10, right: 20, bottom: 34, left: 44, legendTop: LEGEND_H };
+    const innerW = W - M.left - M.right;
+    const innerH = H - M.top - M.bottom - M.legendTop;
+
+    const xScale = d3.scaleLinear()
+      .domain([yearMin, yearMax])
+      .range([0, innerW]);
+
+    const yExtent = [
+      d3.min(series, s => d3.min(s, d => d[0])),
+      d3.max(series, s => d3.max(s, d => d[1])),
+    ];
+    const yScale = d3.scaleLinear()
+      .domain(yExtent)
+      .range([innerH, 0]);
+
+    const area = d3.area()
+      .x(d => xScale(d.data.year))
+      .y0(d => yScale(d[0]))
+      .y1(d => yScale(d[1]))
+      .curve(d3.curveBasis);
+
+    // --- SVG ---
+    const svg = d3.select(_container).append('svg')
+      .attr('width', W)
+      .attr('height', H)
+      .attr('viewBox', `0 0 ${W} ${H}`);
+
+    // --- Legend ---
+    // 2 columns so each cell is wide enough to show full topic names without clipping
+    const cellW = Math.floor(innerW / cols);
+    const legendG = svg.append('g')
+      .attr('transform', `translate(${M.left}, ${M.top})`);
+
+    topTopics.forEach((t, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const lg = legendG.append('g')
+        .attr('transform', `translate(${col * cellW}, ${row * 26})`)
+        .style('cursor', 'pointer')
+        .on('click', () => _toggleTopic(t, paths));
+
+      lg.append('rect')
+        .attr('width', 13).attr('height', 13).attr('rx', 2).attr('y', 0)
+        .attr('fill', topicColor.get(t))
+        .attr('class', `sg-legend-${_cssId(t)}`);
+
+      // Max chars that fit in cellW at 12px Arial (avg ~6.8px/char), leave room for rect+gap
+      const maxChars = Math.floor((cellW - 22) / 6.8);
+      lg.append('text')
+        .attr('x', 20).attr('y', 12)
+        .attr('font-size', 12).attr('fill', '#333336')
+        .attr('font-family', 'Arial, sans-serif')
+        .attr('class', `sg-legend-text-${_cssId(t)}`)
+        .text(t.length > maxChars ? t.slice(0, maxChars - 1) + '…' : t);
+    });
+
+    // --- Chart group ---
+    const g = svg.append('g')
+      .attr('transform', `translate(${M.left}, ${M.top + M.legendTop})`);
+
+    // --- Streams ---
+    const paths = g.selectAll('.stream')
+      .data(series)
+      .enter().append('path')
+      .attr('class', 'stream')
+      .attr('d', area)
+      .attr('fill', d => topicColor.get(d.key))
+      .attr('fill-opacity', ACTIVE_OPACITY)
+      .attr('stroke', d => topicColor.get(d.key))
+      .attr('stroke-width', 0.5)
+      .attr('stroke-opacity', 0.3)
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => _toggleTopic(d.key, paths))
+      .on('mousemove', function(event, d) {
+        const [mx] = d3.pointer(event);
+        const year = Math.round(xScale.invert(mx));
+        if (year < yearMin || year > yearMax) { _hideTooltip(cursorLine); return; }
+
+        const cx = xScale(year);
+        cursorLine.attr('x1', cx).attr('x2', cx).attr('opacity', 0.55);
+
+        const row = yearData.get(year);
+        if (!row) { _hideTooltip(cursorLine); return; }
+
+        const total = topTopics.reduce((sum, t) => sum + (row[t] || 0), 0);
+        const cnt = row[d.key] || 0;
+        const pct = total ? Math.round(cnt / total * 100) : 0;
+        const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${topicColor.get(d.key)};margin-right:6px;vertical-align:-1px;"></span>`;
+
+        _tooltip.innerHTML = `
+          <div style="font-weight:600;font-size:13px;margin-bottom:5px;">${year}</div>
+          <div style="display:flex;align-items:center;">${dot}<span style="font-size:12px;">${d.key.length > 30 ? d.key.slice(0, 28) + '…' : d.key}</span></div>
+          <div style="font-size:12px;color:#6E6E73;margin-top:3px;">${cnt} papers · ${pct}% of year</div>
+          <div style="font-size:11px;color:#86868B;margin-top:2px;">${total} papers total that year</div>
+        `;
+        _tooltip.style.display = 'block';
+
+        let tx = event.clientX + 16;
+        if (tx + 250 > window.innerWidth) tx = event.clientX - 260;
+        _tooltip.style.left = tx + 'px';
+        _tooltip.style.top = (event.clientY - 10) + 'px';
+      })
+      .on('mouseleave', () => _hideTooltip(cursorLine));
+
+    // Restore isolation state if user navigated away and back
+    if (_selectedTopic) _applyIsolation(_selectedTopic, paths);
+
+    // --- X axis ---
+    const tickValues = years.filter((y, i) =>
+      years.length <= 12 || y % 2 === 0 || i === 0 || i === years.length - 1
+    );
+    const xAxis = d3.axisBottom(xScale)
+      .tickValues(tickValues)
+      .tickFormat(d3.format('d'))
+      .tickSize(4);
+
+    g.append('g')
+      .attr('transform', `translate(0, ${innerH})`)
+      .call(xAxis)
+      .call(ax => ax.select('.domain').attr('stroke', '#D2D2D7'))
+      .call(ax => ax.selectAll('.tick line').attr('stroke', '#D2D2D7'))
+      .call(ax => ax.selectAll('.tick text')
+        .attr('fill', '#424245')
+        .attr('font-size', 12)
+        .attr('font-family', "Arial, sans-serif")
+      );
+
+    // --- Cursor line ---
+    const cursorLine = g.append('line')
+      .attr('y1', 0).attr('y2', innerH)
+      .attr('stroke', '#1D1D1F').attr('stroke-width', 1)
+      .attr('stroke-dasharray', '3,3')
+      .attr('opacity', 0)
+      .attr('pointer-events', 'none');
+
+    // Overlay for cursor tracking even in gaps
+    g.append('rect')
+      .attr('width', innerW).attr('height', innerH)
+      .attr('fill', 'none').attr('pointer-events', 'all')
+      .on('mouseleave', () => _hideTooltip(cursorLine));
+  }
+
+  function _toggleTopic(topic, paths) {
+    if (_selectedTopic === topic) {
+      _selectedTopic = null;
+      paths.attr('fill-opacity', ACTIVE_OPACITY);
+    } else {
+      _selectedTopic = topic;
+      _applyIsolation(topic, paths);
+    }
+  }
+
+  function _applyIsolation(topic, paths) {
+    paths.attr('fill-opacity', d => d.key === topic ? ACTIVE_OPACITY : FADE_OPACITY);
+  }
+
+  function _hideTooltip(cursorLine) {
+    if (_tooltip) _tooltip.style.display = 'none';
+    if (cursorLine) cursorLine.attr('opacity', 0);
+  }
+
+  function _cssId(str) {
+    return str.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  }
+
+  return { init };
+})();
+
+</script>
+<script>
+// Co-author × year dot plot.
+// Y = co-author (top 30, sorted by total papers), X = year,
+// dot size = citations (sqrt-scaled), dot color = primary topic.
+// Deterministic Y-jitter prevents exact overlap without re-shuffling on each render.
+// Click dot → open DOI. Responds to all state filters.
+
+window.RKG = window.RKG || {};
+
+RKG.dotPlot = (function() {
+  'use strict';
+
+  const MAX_AUTHORS = 30;
+  const TOPIC_PALETTE = [
+    '#0071E3', '#248A3D', '#B25000', '#8944AB',
+    '#0092A8', '#D70015', '#5856D6',
+  ];
+  const OTHER_COLOR = '#86868B';
+
+  let _chart = null;
+
+  function init() {
+    RKG.state.subscribe(_render);
+    document.addEventListener('rkg:tab-shown', e => {
+      if (e.detail.tab === 'dotplot' && _chart) _chart.resize();
+    });
+    if (RKG.state.get().author) _render();
+  }
+
+  // Deterministic jitter from a string key so positions are stable across re-renders.
+  function _jitter(key) {
+    let h = 5381;
+    for (let i = 0; i < key.length; i++) h = ((h << 5) + h) ^ key.charCodeAt(i);
+    return (((h >>> 0) % 1000) / 1000 - 0.5) * 0.42;
+  }
+
+  function _hexToRgba(hex, a) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  function _render() {
+    const s = RKG.state.get();
+    if (!s.author) return;
+
+    const works = RKG.state.getFilteredWorks();
+    const focalId = s.author.id;
+
+    // Tally co-author paper counts
+    const authorInfo = new Map(); // id -> {name, count}
+    for (const w of works) {
+      for (const auth of (w.authorships || [])) {
+        const aid = auth.author && auth.author.id;
+        if (!aid || aid === focalId) continue;
+        if (!authorInfo.has(aid)) {
+          authorInfo.set(aid, { name: auth.author.display_name, count: 0 });
+        }
+        authorInfo.get(aid).count++;
+      }
+    }
+
+    const topAuthors = [...authorInfo.entries()]
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, MAX_AUTHORS)
+      .map(([id, info]) => ({ id, name: info.name, count: info.count }));
+
+    const authorIdx = new Map(topAuthors.map((a, i) => [a.id, i]));
+
+    // Build topic color map from all filtered works
+    const topicCounts = new Map();
+    for (const w of works) {
+      const t = RKG.state.getPrimaryTopic(w);
+      if (t) topicCounts.set(t, (topicCounts.get(t) || 0) + 1);
+    }
+    const topicColor = new Map();
+    [...topicCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, TOPIC_PALETTE.length)
+      .forEach(([t], i) => topicColor.set(t, TOPIC_PALETTE[i]));
+
+    // Build one point per (work, co-author) pair
+    const points = [];
+    for (const w of works) {
+      if (!w.publication_year) continue;
+      const cites = w.cited_by_count || 0;
+      const r = Math.min(Math.sqrt(cites) * 0.32 + 2.8, 12);
+      const topic = RKG.state.getPrimaryTopic(w);
+      const color = topicColor.get(topic) || OTHER_COLOR;
+
+      const seen = new Set();
+      for (const auth of (w.authorships || [])) {
+        const aid = auth.author && auth.author.id;
+        if (!aid || aid === focalId || !authorIdx.has(aid) || seen.has(aid)) continue;
+        seen.add(aid);
+        const baseY = authorIdx.get(aid);
+        points.push({
+          x: w.publication_year,
+          y: baseY + _jitter((w.id || '') + aid),
+          r,
+          _color: color,
+          _work: w,
+          _authorName: topAuthors[baseY].name,
+          _baseY: baseY,
+        });
+      }
+    }
+
+    _draw(points, topAuthors, s, topicColor);
+  }
+
+  function _draw(points, authors, s, topicColor) {
+    const container = document.getElementById('dotplot-container');
+    if (!container) return;
+
+    if (_chart) { _chart.destroy(); _chart = null; }
+
+    if (!authors.length) {
+      container.style.height = '120px';
+      container.innerHTML = '<div class="flex items-center justify-center h-full text-sm" style="color:var(--ink-muted)">No co-authors to display</div>';
+      return;
+    }
+
+    // Legend — spread across full container width
+    const legendEntries = topicColor ? [...topicColor.entries()] : [];
+    const containerW = container.offsetWidth || 800;
+    const minCellW = 148;
+    const colCount = Math.max(1, Math.min(legendEntries.length, Math.floor(containerW / minCellW)));
+    const legendRows = legendEntries.length ? Math.ceil(legendEntries.length / colCount) : 0;
+    const legendH = legendEntries.length ? (legendRows * 26 + 8) : 0;
+    const legendHTML = legendEntries.length ? `
+      <div style="height:${legendH}px;display:grid;grid-template-columns:repeat(${colCount},1fr);gap:4px 8px;align-items:center;padding:4px 0;font-size:11px;color:#333336;font-family:Arial,sans-serif;">
+        ${legendEntries.map(([t, c]) => `
+          <span style="display:flex;align-items:center;gap:5px;min-width:0;">
+            <span style="width:10px;height:10px;border-radius:2px;background:${c};flex-shrink:0;display:inline-block;"></span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="${t}">${t}</span>
+          </span>`).join('')}
+      </div>` : '';
+
+    // Height proportional to number of authors shown
+    const rowH = 22;
+    const chartH = Math.max(360, Math.min(680, authors.length * rowH + 72));
+    container.style.height = (chartH + legendH) + 'px';
+    container.innerHTML = legendHTML + `<div style="position:relative;height:${chartH}px;"><canvas id="dotplot-canvas" role="img" aria-label="Co-author dot plot"></canvas></div>`;
+
+    const ctx = document.getElementById('dotplot-canvas');
+
+    _chart = new Chart(ctx, {
+      type: 'bubble',
+      data: {
+        datasets: [{
+          data: points,
+          backgroundColor: points.map(p => _hexToRgba(p._color, 0.62)),
+          borderColor: points.map(p => _hexToRgba(p._color, 0.88)),
+          borderWidth: 1,
+          pointStyle: 'circle',
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 6, right: 20, bottom: 4, left: 4 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255,255,255,0.97)',
+            titleColor: '#1D1D1F',
+            bodyColor: '#6E6E73',
+            borderColor: '#D2D2D7',
+            borderWidth: 1,
+            padding: 10,
+            callbacks: {
+              title: () => '',
+              label: ctx => {
+                const p = ctx.raw;
+                const w = p._work;
+                const title = (w.title || '').length > 75
+                  ? (w.title || '').slice(0, 73) + '…'
+                  : (w.title || '');
+                return [
+                  p._authorName,
+                  title,
+                  `${w.publication_year} · ${w.cited_by_count || 0} citations`,
+                ].filter(Boolean);
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            min: s.filteredYearMin - 0.5,
+            max: s.filteredYearMax + 0.5,
+            ticks: {
+              stepSize: 1,
+              callback: v => Number.isInteger(v) ? v : '',
+              color: '#6E6E73',
+              font: { size: 11, family: 'Arial' },
+            },
+            grid: { color: 'rgba(0,0,0,0.04)' },
+          },
+          y: {
+            type: 'linear',
+            min: -0.7,
+            max: authors.length - 0.3,
+            reverse: true,  // index 0 (most frequent) at top
+            ticks: {
+              stepSize: 1,
+              color: '#6E6E73',
+              font: { size: 10, family: 'Arial' },
+              callback: v => {
+                const i = Math.round(v);
+                if (Math.abs(v - i) > 0.01) return '';
+                const a = authors[i];
+                if (!a) return '';
+                const nm = a.name.length > 19 ? a.name.slice(0, 17) + '…' : a.name;
+                return `${nm} (${a.count})`;
+              },
+            },
+            grid: {
+              color: i => {
+                // Slightly stronger gridlines between rows for readability
+                return Number.isInteger(i.tick.value) ? 'rgba(0,0,0,0.07)' : 'rgba(0,0,0,0)';
+              },
+            },
+          },
+        },
+        onClick: (evt, items) => {
+          if (!items.length) return;
+          const p = _chart.data.datasets[0].data[items[0].index];
+          if (p._work.doi) {
+            window.open(`https://doi.org/${p._work.doi.replace('https://doi.org/', '')}`, '_blank');
+          }
+        },
+      },
+    });
+  }
+
+  return { init };
+})();
+
+</script>
+<script>
+// 3D bubble timeline. Three.js + OrbitControls.
+// X = publication year, Y = journal IF, Z = sqrt(citations).
+// Right-drag: rotate. Left-drag: pan. Scroll: zoom.
+// Click sphere: open DOI. Hover: tooltip.
+// Role encoding: senior=solid, first=wireframe, middle=translucent.
+
+window.RKG = window.RKG || {};
+
+RKG.bubble3d = (function() {
+  'use strict';
+
+  const TOPIC_PALETTE = ['#0071E3','#248A3D','#B25000','#8944AB','#0092A8','#D70015','#5856D6'];
+  const OTHER_COLOR = '#86868B';
+
+  let _container, _tooltip;
+  let _scene, _camera, _renderer, _controls;
+  let _meshes = [];
+  let _raycaster, _mouse;
+  let _ready = false;
+  let _hovered = null;
+
+  function init() {
+    RKG.state.subscribe(() => { if (_ready) _render(); });
+    document.addEventListener('rkg:tab-shown', e => {
+      if (e.detail.tab !== 'bubble3d') return;
+      if (!_ready) _setup();
+      _resize();
+      if (RKG.state.get().author) _render();
+    });
+  }
+
+  function _setup() {
+    _container = document.getElementById('bubble-3d-container');
+    if (!_container) return;
+    if (!window.THREE || !THREE.OrbitControls) {
+      _container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:13px;color:#6E6E73;">Failed to load Three.js (check network).</div>';
+      return;
+    }
+
+    _ready = true;
+    _container.style.position = 'relative';
+
+    const w = _container.clientWidth || 900;
+    const h = _container.clientHeight || 560;
+
+    // Scene
+    _scene = new THREE.Scene();
+    _scene.background = new THREE.Color(0xFFFFFF);
+    _scene.fog = new THREE.FogExp2(0xFFFFFF, 0.016);
+
+    // Camera
+    _camera = new THREE.PerspectiveCamera(48, w / h, 0.1, 300);
+    _camera.position.set(2, 8, 22);
+
+    // Renderer
+    _renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    _renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    _renderer.setSize(w, h);
+    _container.appendChild(_renderer.domElement);
+
+    // Lights
+    _scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.65);
+    sun.position.set(6, 12, 10);
+    _scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.22);
+    fill.position.set(-5, -3, -8);
+    _scene.add(fill);
+
+    // Floor grid
+    const grid = new THREE.GridHelper(26, 26, 0xD2D2D7, 0xD2D2D7);
+    grid.position.y = -0.45;
+    grid.material.transparent = true;
+    grid.material.opacity = 0.55;
+    _scene.add(grid);
+
+    // OrbitControls — right-drag = rotate, left-drag = pan
+    _controls = new THREE.OrbitControls(_camera, _renderer.domElement);
+    _controls.mouseButtons = {
+      LEFT: THREE.MOUSE.PAN,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.ROTATE,
+    };
+    _controls.enableDamping = true;
+    _controls.dampingFactor = 0.08;
+    _controls.zoomSpeed = 0.4;  // soften wheel-zoom sensitivity (default 1.0 = ~5% per notch → ~2%)
+    _controls.screenSpacePanning = true;
+    _controls.target.set(0, 3, 4);
+    _controls.update();
+
+    // Raycaster
+    _raycaster = new THREE.Raycaster();
+    _mouse = new THREE.Vector2(-999, -999);
+
+    // HTML tooltip overlay
+    _tooltip = document.createElement('div');
+    Object.assign(_tooltip.style, {
+      position: 'absolute', top: '0', left: '0', pointerEvents: 'none',
+      background: 'rgba(255,255,255,0.97)', border: '1px solid #D2D2D7',
+      padding: '9px 12px', borderRadius: '4px', fontSize: '11.5px',
+      lineHeight: '1.55', maxWidth: '260px', display: 'none',
+      fontFamily: "'Pretendard Variable', system-ui, sans-serif",
+      color: '#1D1D1F', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', zIndex: '10',
+    });
+    _container.appendChild(_tooltip);
+
+    // Axis labels (HTML overlays — always readable regardless of camera angle)
+    _addAxisLabels();
+
+    // Reset button
+    const resetBtn = document.getElementById('bubble-3d-reset');
+    if (resetBtn) resetBtn.addEventListener('click', _resetCamera);
+
+    _renderer.domElement.addEventListener('mousemove', _onMouseMove);
+    _renderer.domElement.addEventListener('click', _onClick);
+    window.addEventListener('resize', _resize);
+
+    _animate();
+  }
+
+  function _addAxisLabels() {
+    const base = 'position:absolute;pointer-events:none;font-size:11px;color:#515154;background:rgba(255,255,255,0.85);padding:2px 8px;border-radius:3px;font-family:Arial,sans-serif;border:1px solid rgba(210,210,215,0.7);white-space:nowrap;';
+
+    const xLbl = document.createElement('div');
+    xLbl.style.cssText = base + 'bottom:14px;right:14px;';
+    xLbl.textContent = 'X: Year';
+    _container.appendChild(xLbl);
+
+    const yLbl = document.createElement('div');
+    yLbl.style.cssText = base + 'top:50%;left:6px;transform:translateY(-50%) rotate(-90deg);transform-origin:center center;';
+    yLbl.textContent = 'Y: Journal IF';
+    _container.appendChild(yLbl);
+
+    const zLbl = document.createElement('div');
+    zLbl.style.cssText = base + 'bottom:14px;left:50%;transform:translateX(-50%);';
+    zLbl.textContent = 'Z: Citations (√)';
+    _container.appendChild(zLbl);
+  }
+
+  function _resetCamera() {
+    if (!_camera || !_controls) return;
+    _camera.position.set(2, 8, 22);
+    _controls.target.set(0, 3, 4);
+    _controls.update();
+  }
+
+  function _hexToColor(hex) {
+    return new THREE.Color(parseInt(hex.slice(1), 16));
+  }
+
+  function _render() {
+    if (!_ready || !_scene) return;
+    const s = RKG.state.get();
+    if (!s.author) return;
+
+    // Dispose old meshes
+    for (const m of _meshes) {
+      _scene.remove(m);
+      m.geometry.dispose();
+      m.material.dispose();
+    }
+    _meshes = [];
+    _hovered = null;
+
+    const works = RKG.state.getFilteredWorks();
+    if (!works.length) return;
+
+    // Topic color map
+    const topicCounts = new Map();
+    for (const w of works) {
+      const t = RKG.state.getPrimaryTopic(w);
+      if (t) topicCounts.set(t, (topicCounts.get(t) || 0) + 1);
+    }
+    const topicColor = new Map();
+    [...topicCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, TOPIC_PALETTE.length)
+      .forEach(([t], i) => topicColor.set(t, TOPIC_PALETTE[i]));
+
+    const yearMin = s.filteredYearMin;
+    const yearMax = s.filteredYearMax;
+    const yearRange = Math.max(yearMax - yearMin, 1);
+    const maxCites = Math.max(...works.map(w => w.cited_by_count || 0), 1);
+
+    const ifVals = works.map(w => {
+      const sid = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      return sid ? ((s.sourceStats.get(sid) || {}).if_2yr || 0) : 0;
+    });
+    const maxIF = Math.max(...ifVals.filter(v => v > 0), 10);
+
+    works.forEach((w, wi) => {
+      const role = RKG.state.getAuthorshipRole(w);
+      if (role === 'none') return;
+
+      const year = w.publication_year || yearMin;
+      const cites = w.cited_by_count || 0;
+      const ifVal = ifVals[wi];
+
+      // Scene coordinates: X=-8..+8, Y=0..7.5, Z=0..8
+      const x = ((year - yearMin) / yearRange) * 16 - 8;
+      const y = Math.min((ifVal / maxIF) * 7.5, 7.5);
+      const z = Math.min((Math.sqrt(cites) / Math.sqrt(maxCites)) * 8, 8);
+
+      const colorHex = topicColor.get(RKG.state.getPrimaryTopic(w)) || OTHER_COLOR;
+      const color = _hexToColor(colorHex);
+
+      let baseR = role === 'senior' ? 0.24 : role === 'first' ? 0.20 : 0.13;
+      baseR += Math.sqrt(cites) * 0.008;
+      const r = Math.min(baseR, 0.52);
+
+      let mesh;
+      if (role === 'first') {
+        // Wireframe = ring aesthetic (same as 2D border-only bubbles)
+        mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(r, 12, 8),
+          new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.65 })
+        );
+      } else {
+        mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(r, 14, 10),
+          new THREE.MeshPhongMaterial({
+            color,
+            transparent: true,
+            opacity: role === 'senior' ? 0.72 : 0.40,
+            shininess: role === 'senior' ? 80 : 30,
+          })
+        );
+      }
+
+      mesh.position.set(x, y, z);
+      // Store metadata for tooltip/click
+      const sid = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      const stat = sid ? s.sourceStats.get(sid) : null;
+      mesh._work = w;
+      mesh._journal = stat ? (stat.display_name || '') : '';
+      mesh._role = role;
+      mesh._ifVal = ifVal;
+
+      _scene.add(mesh);
+      _meshes.push(mesh);
+    });
+  }
+
+  function _onMouseMove(e) {
+    const rect = _renderer.domElement.getBoundingClientRect();
+    _mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    _mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    _raycaster.setFromCamera(_mouse, _camera);
+
+    const hits = _raycaster.intersectObjects(_meshes, false);
+    if (hits.length && hits[0].object._work) {
+      _hovered = hits[0].object;
+      const m = _hovered;
+      const w = m._work;
+      const roleLabel = { first: 'First author', senior: 'Last author', middle: 'Middle author' }[m._role] || '';
+      _tooltip.innerHTML = [
+        `<strong>${(w.title || '').length > 72 ? w.title.slice(0, 70) + '…' : (w.title || '')}</strong>`,
+        [m._journal, w.publication_year].filter(Boolean).join(' · '),
+        [`${w.cited_by_count || 0} citations`, roleLabel, m._ifVal ? `IF ${m._ifVal.toFixed(1)}` : ''].filter(Boolean).join(' · '),
+      ].join('<br>');
+      _tooltip.style.display = 'block';
+      const cr = _container.getBoundingClientRect();
+      let tx = e.clientX - cr.left + 14;
+      if (tx + 268 > _container.clientWidth) tx = e.clientX - cr.left - 278;
+      _tooltip.style.left = tx + 'px';
+      _tooltip.style.top = (e.clientY - cr.top - 6) + 'px';
+      _renderer.domElement.style.cursor = 'pointer';
+    } else {
+      _hovered = null;
+      _tooltip.style.display = 'none';
+      _renderer.domElement.style.cursor = 'default';
+    }
+  }
+
+  function _onClick() {
+    if (!_hovered || !_hovered._work) return;
+    const w = _hovered._work;
+    if (w.doi) window.open(`https://doi.org/${w.doi.replace('https://doi.org/', '')}`, '_blank');
+  }
+
+  function _resize() {
+    if (!_renderer || !_container || !_camera) return;
+    const w = _container.clientWidth;
+    const h = _container.clientHeight;
+    if (!w || !h) return;
+    _camera.aspect = w / h;
+    _camera.updateProjectionMatrix();
+    _renderer.setSize(w, h);
+  }
+
+  function _animate() {
+    requestAnimationFrame(_animate);
+    if (_controls) _controls.update();
+    if (_renderer && _scene && _camera) _renderer.render(_scene, _camera);
+  }
+
+  return { init };
+})();
+
+</script>
+<script>
+// Dashboard controller. Wires up tabs, stats, filters, and triggers viz updates.
+
+window.RKG = window.RKG || {};
+
+RKG.dashboard = (function() {
+  'use strict';
+
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => [...document.querySelectorAll(sel)];
+
+  let _activated = false;
+  let _journalSort = { col: 'papers', dir: 'desc' };
+  let _paperSort   = { col: 'year',   dir: 'desc' };
+  const _ROLE_CYCLE = ['all', 'first', 'senior', 'middle'];
+  const _ROLE_LABEL = { all: '', first: ' · first author', senior: ' · last author', middle: ' · middle author' };
+  let _paperRoleFilter = 'all';
+
+  function fmtNum(n) {
+    if (n == null) return '—';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+    return String(n);
+  }
+
+  function fmtFloat(n, digits = 2) {
+    if (n == null || isNaN(n)) return '—';
+    return Number(n).toFixed(digits);
+  }
+
+  function activate() {
+    const s = RKG.state.get();
+    const a = s.author;
+    if (!a) return;
+
+    // Author header
+    $('#author-display-name').textContent = a.display_name;
+    $('#author-affiliation').textContent = (a._displayInstitutions || a._matchedInstitutions || a._institutions || []).slice(0, 3).join(' · ');
+    $('#author-orcid').textContent = a.orcid ? a.orcid.replace('https://', '') : '';
+
+    // Year sliders
+    const yMin = $('#year-min'), yMax = $('#year-max');
+    yMin.min = yMax.min = s.yearMin;
+    yMin.max = yMax.max = s.yearMax;
+    yMin.value = s.yearMin;
+    yMax.value = s.yearMax;
+    updateYearLabel();
+
+    $('#dashboard').classList.remove('hidden');
+
+    if (!_activated) {
+      _activated = true;
+      _wireUpControls();
+
+      // Initialize each viz module (they each subscribe to state)
+      RKG.bubbleTimeline.init();
+      RKG.coauthorNetwork.init();
+      RKG.streamgraph.init();
+      RKG.dotPlot.init();
+      RKG.bubble3d.init();
+
+      // Subscribe dashboard updates (stats, tables)
+      RKG.state.subscribe(_renderAll);
+    }
+
+    _renderAll();
+    $('#dashboard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function _wireUpControls() {
+    // Year sliders
+    $('#year-min').addEventListener('input', _onYearChange);
+    $('#year-max').addEventListener('input', _onYearChange);
+
+    // Authorship role filter
+    $$('#role-filter .role-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        $$('#role-filter .role-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        RKG.state.setAuthorshipRole(btn.dataset.role);
+      });
+    });
+
+    // Co-author filter clear
+    $('#clear-coauthor-filter').addEventListener('click', () => {
+      RKG.state.setSelectedCoauthor(null);
+    });
+
+    // Network min papers slider
+    $('#min-papers').addEventListener('input', e => {
+      const n = +e.target.value;
+      $('#min-papers-label').textContent = n;
+      RKG.state.setMinCoauthorPapers(n);
+    });
+
+    // Tabs
+    $$('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        $$('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        $$('.tab-panel').forEach(p => p.classList.add('hidden'));
+        $(`#tab-${btn.dataset.tab}`).classList.remove('hidden');
+        // Notify viz modules in case they need to redraw on first show
+        const event = new CustomEvent('rkg:tab-shown', { detail: { tab: btn.dataset.tab } });
+        document.dispatchEvent(event);
+      });
+    });
+
+    // Reset button
+    $('#reset-btn').addEventListener('click', () => {
+      RKG.state.reset();
+      $('#dashboard').classList.add('hidden');
+      $('#author-name').focus();
+    });
+
+    // Journal table column sort
+    $$('#journals-thead th[data-sort]').forEach(th => {
+      th.style.cursor = 'pointer';
+      th.title = 'Click to sort';
+      th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        if (_journalSort.col === col) {
+          _journalSort.dir = _journalSort.dir === 'desc' ? 'asc' : 'desc';
+        } else {
+          _journalSort.col = col;
+          _journalSort.dir = 'desc';
+        }
+        _renderJournals(RKG.state.getFilteredWorks());
+      });
+    });
+
+    // Paper table: year / cites column sort
+    $$('#papers-thead th[data-sort]').forEach(th => {
+      th.style.cursor = 'pointer';
+      th.title = 'Click to sort';
+      th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        if (_paperSort.col === col) {
+          _paperSort.dir = _paperSort.dir === 'desc' ? 'asc' : 'desc';
+        } else {
+          _paperSort.col = col;
+          _paperSort.dir = 'desc';
+        }
+        _renderPapers(RKG.state.getFilteredWorks());
+      });
+    });
+
+    // Paper table: role header cycles through filter states
+    const roleTh = $('#papers-thead th[data-role-cycle]');
+    if (roleTh) {
+      roleTh.style.cursor = 'pointer';
+      roleTh.addEventListener('click', () => {
+        const idx = (_ROLE_CYCLE.indexOf(_paperRoleFilter) + 1) % _ROLE_CYCLE.length;
+        _paperRoleFilter = _ROLE_CYCLE[idx];
+        _renderPapers(RKG.state.getFilteredWorks());
+      });
+    }
+  }
+
+  function _onYearChange() {
+    const lo = +$('#year-min').value;
+    const hi = +$('#year-max').value;
+    RKG.state.setYearRange(lo, hi);
+    updateYearLabel();
+  }
+
+  function updateYearLabel() {
+    const s = RKG.state.get();
+    $('#year-range-label').textContent = `${s.filteredYearMin} – ${s.filteredYearMax}`;
+  }
+
+  function _renderAll() {
+    const s = RKG.state.get();
+    if (!s.author) return;
+
+    const works = RKG.state.getFilteredWorks();
+    _renderStats(works);
+    _renderJournals(works);
+    _renderPapers(works);
+    _renderActiveCoauthorFilter();
+    updateYearLabel();
+  }
+
+  function _renderActiveCoauthorFilter() {
+    const s = RKG.state.get();
+    const el = $('#active-coauthor-filter');
+    if (s.selectedCoauthor) {
+      // find name
+      const name = _findCoauthorName(s.selectedCoauthor) || s.selectedCoauthor;
+      $('#active-coauthor-name').textContent = name;
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  }
+
+  function _findCoauthorName(id) {
+    const s = RKG.state.get();
+    for (const w of s.works) {
+      for (const auth of (w.authorships || [])) {
+        if (auth.author && auth.author.id === id) return auth.author.display_name;
+      }
+    }
+    return null;
+  }
+
+  function _renderStats(works) {
+    const s = RKG.state.get();
+    const totalCites = works.reduce((sum, w) => sum + (w.cited_by_count || 0), 0);
+
+    const cites = works.map(w => w.cited_by_count || 0).sort((a, b) => b - a);
+    let h = 0;
+    for (let i = 0; i < cites.length; i++) {
+      if (cites[i] >= i + 1) h = i + 1; else break;
+    }
+
+    const years = works.map(w => w.publication_year).filter(Boolean);
+    const yearsActive = years.length ? (Math.max(...years) - Math.min(...years) + 1) : 0;
+
+    const focalIds = new Set(s.author._mergedIds || [s.author.id]);
+    const coauthors = new Set();
+    for (const w of works) {
+      for (const auth of (w.authorships || [])) {
+        if (auth.author && auth.author.id && !focalIds.has(auth.author.id)) {
+          coauthors.add(auth.author.id);
+        }
+      }
+    }
+
+    $('#stat-papers').textContent = works.length;
+    $('#stat-citations').textContent = fmtNum(totalCites);
+    $('#stat-hindex').textContent = h;
+    $('#stat-years').textContent = yearsActive;
+    $('#stat-coauthors').textContent = fmtNum(coauthors.size);
+  }
+
+  function _renderJournals(works) {
+    const s = RKG.state.get();
+    const counts = new Map();
+    for (const w of works) {
+      const sid = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      if (!sid) continue;
+      if (!counts.has(sid)) counts.set(sid, { papers: 0, cites: 0 });
+      const o = counts.get(sid);
+      o.papers++;
+      o.cites += w.cited_by_count || 0;
+    }
+    const rows = [...counts.entries()]
+      .map(([sid, c]) => {
+        const stat = s.sourceStats.get(sid) || {};
+        return { sid, name: stat.display_name || 'Unknown', if_2yr: stat.if_2yr, if_source: stat.if_source, h_index: stat.h_index, ...c };
+      });
+
+    const jc = _journalSort;
+    rows.sort((a, b) => {
+      let va, vb;
+      if (jc.col === 'papers')  { va = a.papers;       vb = b.papers; }
+      else if (jc.col === 'cites')  { va = a.cites;        vb = b.cites; }
+      else if (jc.col === 'if')     { va = a.if_2yr || 0;  vb = b.if_2yr || 0; }
+      else if (jc.col === 'hindex') { va = a.h_index || 0; vb = b.h_index || 0; }
+      else { va = a.papers; vb = b.papers; }
+      return jc.dir === 'desc' ? vb - va : va - vb;
+    });
+
+    // Update sort indicator arrows
+    $$('#journals-thead th[data-sort]').forEach(th => {
+      const sp = th.querySelector('.sort-arrow');
+      if (sp) sp.textContent = th.dataset.sort === jc.col ? (jc.dir === 'desc' ? ' ↓' : ' ↑') : '';
+    });
+
+    $('#journals-tbody').innerHTML = rows.map(r => `
+      <tr>
+        <td><div class="font-medium journal-name">${r.name}</div></td>
+        <td class="text-right mono">${r.papers}</td>
+        <td class="text-right mono">${fmtNum(r.cites)}</td>
+        <td class="text-right">
+          ${r.if_2yr != null
+            ? `<span class="pill pill-accent mono">${fmtFloat(r.if_2yr, 2)}</span>${r.if_source === 'OA' ? '<span class="text-muted" style="font-size:9px;margin-left:2px;" title="OpenAlex 2yr citedness">OA</span>' : ''}`
+            : '<span class="text-muted">—</span>'}
+        </td>
+        <td class="text-right mono">${r.h_index != null ? r.h_index : '—'}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="5" class="text-center text-muted py-6">No data</td></tr>`;
+  }
+
+  function _renderPapers(works) {
+    // Role cycle filter (local to papers table)
+    const roleLabel = $('#papers-role-label');
+    if (roleLabel) roleLabel.textContent = _ROLE_LABEL[_paperRoleFilter] || '';
+
+    const displayed = _paperRoleFilter === 'all'
+      ? works
+      : works.filter(w => RKG.state.getAuthorshipRole(w) === _paperRoleFilter);
+
+    const pc = _paperSort;
+    const sorted = [...displayed].sort((a, b) => {
+      if (pc.col === 'year') {
+        const d = (b.publication_year || 0) - (a.publication_year || 0);
+        return pc.dir === 'desc' ? d : -d;
+      } else if (pc.col === 'cites') {
+        const d = (b.cited_by_count || 0) - (a.cited_by_count || 0);
+        return pc.dir === 'desc' ? d : -d;
+      }
+      return 0;
+    });
+
+    // Update sort indicator arrows
+    $$('#papers-thead th[data-sort]').forEach(th => {
+      const sp = th.querySelector('.sort-arrow');
+      if (sp) sp.textContent = th.dataset.sort === pc.col ? (pc.dir === 'desc' ? ' ↓' : ' ↑') : '';
+    });
+
+    const limit = 200;
+    $('#papers-tbody').innerHTML = sorted.slice(0, limit).map(w => {
+      const role = RKG.state.getAuthorshipRole(w);
+      const journal = w.primary_location && w.primary_location.source && w.primary_location.source.display_name || '';
+      const url = w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}`
+        : (w._pmid ? `https://pubmed.ncbi.nlm.nih.gov/${w._pmid}/` : (w.id || '#'));
+      const rolePill = {
+        first: '<span class="pill pill-first">First</span>',
+        senior: '<span class="pill pill-senior">Last</span>',
+        middle: '<span class="pill pill-middle">Middle</span>',
+        none: '',
+      }[role] || '';
+      // Provenance badges from the 3-stage pipeline (absent on pre-pipeline data)
+      const src = w._sources || {};
+      const meshTip = (w.mesh && w.mesh.length)
+        ? `MeSH: ${w.mesh.slice(0, 8).join(', ').replace(/"/g, '')}` : 'Verified on PubMed';
+      const badges = [
+        src.orcid ? '<span class="src-badge" title="Listed in ORCID registry">O</span>' : '',
+        src.pubmed ? `<span class="src-badge" title="${meshTip}">P</span>` : '',
+        src.openalex === false ? '<span class="src-badge src-badge-warn" title="Not in OpenAlex — no citation/topic data; excluded from charts">!</span>' : '',
+      ].join('');
+      return `
+        <tr>
+          <td class="mono">${w.publication_year || '—'}</td>
+          <td>${rolePill}</td>
+          <td>
+            <a href="${url}" target="_blank" class="font-medium hover:underline">${w.title || '(untitled)'}</a>${badges}
+            ${journal ? `<div class="text-xs text-muted mt-0.5 journal-name">${journal}</div>` : ''}
+          </td>
+          <td class="text-right mono">${w.cited_by_count || 0}</td>
+        </tr>
+      `;
+    }).join('');
+    if (sorted.length > limit) {
+      $('#papers-tbody').innerHTML += `<tr><td colspan="4" class="text-center text-muted py-3 text-xs">Showing top ${limit} of ${sorted.length} papers</td></tr>`;
+    }
+  }
+
+  return { activate };
+})();
+
+// Boot
+document.addEventListener('DOMContentLoaded', () => {
+  RKG.search.init();
+});
+
+</script>
+
+</body>
+</html>
