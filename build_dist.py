@@ -3,12 +3,17 @@
 Reads index.html as the template, then:
 - Replaces <link rel="stylesheet" href="css/styles.css"> with inlined <style>
 - Replaces each local <script src="..."> with inlined <script>
+- Drops the local-only full JCR table; the distributable ships the public subset
 """
 
 import os
 import re
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+
+# Clarivate-licensed full IF table: gitignored, must never be inlined.
+# data/jcr-if-public.js, loaded right after it in index.html, provides RKG.jcrData.
+LOCAL_ONLY_SCRIPTS = {'data/jcr-if.js'}
 
 def read(path):
     with open(os.path.join(BASE, path), encoding='utf-8') as f:
@@ -31,6 +36,8 @@ def replace_js(m):
     src = m.group(1)
     if src.startswith('http'):
         return m.group(0)
+    if src in LOCAL_ONLY_SCRIPTS:
+        return ''
     js = read(src)
     return f'<script>\n{js}\n</script>'
 
