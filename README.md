@@ -58,6 +58,8 @@ Clarivate does not expose the JIF via any API, and the full JCR dataset is licen
 
 `index.html` loads the full local table first (it 404s on the public build), then the public subset, which only assigns itself if nothing loaded. Journals outside the subset show the OpenAlex value with an "OA" badge.
 
+`build_dist.py` always leaves out the full table, so `researcher-kg.html` only ships the public subset.
+
 Current data: **JCR 2026 release (2025 JIF values)**.
 
 ### Yearly update
