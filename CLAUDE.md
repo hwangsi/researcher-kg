@@ -8,7 +8,7 @@ Target user: academic researchers (initially: radiology professors). Use case: c
 
 ## Tech stack constraints
 
-- **No build step.** Vanilla HTML/CSS/JS. CDN-loaded libraries only.
+- **No build step.** Vanilla HTML/CSS/JS. CDN-loaded libraries only, except Tailwind (see Conventions).
 - **No backend.** All data via public APIs (OpenAlex; future: PubMed).
 - **Works from `file://` (double-click open).** Use script tags with global namespace, NOT ES modules — `type="module"` breaks under file://.
 - English-only UI (switched from Korean 2026-07; user-facing strings, tooltips, and status messages must be English).
@@ -145,6 +145,7 @@ We tried an ego network first. **It failed** and is intentionally removed. Reaso
 index.html              entry point; loads scripts in order
 css/styles.css          all custom styles (Apple/macOS light theme)
 js/util.js              escapeHtml and safeUrl for putting external data into HTML
+js/vendor/              unmodified Tailwind browser build and its license (its CDN can't use integrity)
 js/api.js               OpenAlex API wrapper (searchAuthors, fetchAllWorks, fetchSourceStats)
 js/state.js             central state + pub/sub + filtered selectors
 js/search.js            author search & disambiguation UI
@@ -174,6 +175,7 @@ reference/
 - Numeric formatting: round before displaying. Citation counts as integers, IF to 2 decimals.
 - Error handling: API failures show user-facing status message, never throw to console.
 - External data is untrusted: text from OpenAlex, ORCID and PubMed goes through `RKG.util.escapeHtml` before any `innerHTML`, including attribute values, and non-DOI links go through `RKG.util.safeUrl`. Slice text before escaping, never after. Injected script could read the API key saved in `localStorage`.
+- Third-party scripts can read that key too, so pin each to an exact version with `integrity` and `crossorigin="anonymous"`. Get the hash with `curl -sL URL | openssl dgst -sha384 -binary | openssl base64 -A`. Use a file that exists in the npm package, because jsDelivr generates missing `.min.js` files and their bytes can change. `cdn.tailwindcss.com` sends no CORS header, so integrity checks would block it; `js/vendor/tailwindcss-3.4.17.js` is an unmodified copy instead. To upgrade, replace that file and its license.
 
 ## Authorship role detection
 
@@ -210,7 +212,7 @@ Then assign each node its dominant topic for coloring.
 - OpenAlex `cited_by_count` updates daily, not real-time.
 - Prolific authors span several pages. Page-numbered paging stops at 10,000 results, so a profile above that (usually a merged-identity error in OpenAlex) loads partially and shows the warning.
 - Korean author names: pre-2018 OpenAlex data may split same person across IDs. Manual ID consolidation may be needed for very senior researchers.
-- Tailwind CDN: warns in dev tools but works fine for static deploy.
+- Tailwind's browser build: warns in dev tools but works fine for static deploy.
 - Force layout is non-deterministic — clusters appear in different positions each render. Acceptable trade-off.
 - Chart.js canvas text rendering gotcha: Chart.js는 라벨/툴팁을 <canvas>에 그리므로 CSS만으로 폰트 제어가 안 됨. body의 font-feature-settings가 canvas로 새는 문제도 있음. 차트 폰트는 반드시 Chart.defaults.font.family를 JS에서 설정 (현재 bubble-timeline.js 상단). 축별 ticks.font도 백업으로 둔다. 일부 OpenAlex 저널명에 leading control char가 있어 y축 callback에서 strip 함. 폰트 바꾸고 싶을 때는 bubble-timeline.js 상단의 Chart.defaults.font.family 와 TICK_FONT.family 두 줄만 바꾸면 됨. 같은 font-feature-settings 누수가 HTML 테이블·SVG text에서도 발생하므로, 데이터 표시 영역에는 styles.css에 별도 reset 룰을 둠 (table.kg-table 등 셀렉터).
 

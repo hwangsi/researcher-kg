@@ -116,13 +116,15 @@ python build_public_if.py                     # public subset (commit this one)
 
 | Library | Used for |
 |---|---|
-| Tailwind CDN | UI utility classes |
+| Tailwind 3.4.17 browser build (`js/vendor/`) | UI utility classes |
 | Chart.js | Bubble timeline, dot plot |
 | D3 v7 | Co-author network, streamgraph, Publication Explorer's 2D projections |
 | Three.js + OrbitControls | Publication Explorer's orthographic 3D view |
 | OpenAlex API | Papers, authors, journals |
 | ORCID Public API | Author-curated publication list |
 | PubMed E-utilities | MeSH terms, Medline recall |
+
+CDN scripts are pinned to exact versions and verified with `integrity` hashes. Tailwind's CDN doesn't allow those checks, so the repository keeps an unmodified copy.
 
 ## Build and validation
 
@@ -159,6 +161,8 @@ build_public_if.py    ← full table → committed public subset
 css/styles.css
 js/
   util.js, api.js, state.js, search.js, dashboard.js, pubmed.js
+  vendor/
+    tailwindcss-3.4.17.js ← unmodified Tailwind browser build, with its license
   viz/
     bubble-timeline.js, coauthor-network.js
     streamgraph.js, dot-plot.js, bubble-3d.js
