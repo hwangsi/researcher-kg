@@ -186,4 +186,4 @@ All data is retrieved from public web databases (OpenAlex, ORCID, PubMed) and ma
 
 ---
 
-© 2026 Sung Il Hwang, MD, PhD. All rights reserved.
+© 2026 Sung Il Hwang, MD, PhD. Licensed under the [MIT License](LICENSE).
