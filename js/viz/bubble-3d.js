@@ -9,6 +9,8 @@ window.RKG = window.RKG || {};
 RKG.bubble3d = (function() {
   'use strict';
 
+  const esc = RKG.util.escapeHtml;
+
   const TOPIC_PALETTE = ['#0071E3','#248A3D','#B25000','#8944AB','#0092A8','#D70015','#5856D6'];
   const OTHER_COLOR = '#86868B';
 
@@ -254,9 +256,9 @@ RKG.bubble3d = (function() {
       const w = m._work;
       const roleLabel = { first: 'First author', senior: 'Last author', middle: 'Middle author' }[m._role] || '';
       _tooltip.innerHTML = [
-        `<strong>${(w.title || '').length > 72 ? w.title.slice(0, 70) + '…' : (w.title || '')}</strong>`,
-        [m._journal, w.publication_year].filter(Boolean).join(' · '),
-        [`${w.cited_by_count || 0} citations`, roleLabel, m._ifVal ? `IF ${m._ifVal.toFixed(1)}` : ''].filter(Boolean).join(' · '),
+        `<strong>${esc((w.title || '').length > 72 ? w.title.slice(0, 70) + '…' : (w.title || ''))}</strong>`,
+        esc([m._journal, w.publication_year].filter(Boolean).join(' · ')),
+        [`${esc(w.cited_by_count || 0)} citations`, roleLabel, m._ifVal ? `IF ${m._ifVal.toFixed(1)}` : ''].filter(Boolean).join(' · '),
       ].join('<br>');
       _tooltip.style.display = 'block';
       const cr = _container.getBoundingClientRect();

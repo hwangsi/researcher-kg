@@ -453,6 +453,33 @@ RKG.jcrData = RKG.jcrData || {"1083-3668":3.3,"1560-2281":3.3,"2156-7085":3.2,"1
 
 </script>
 <script>
+// Helpers for putting external data into HTML. Text from OpenAlex, ORCID and PubMed is
+// third-party input, and script injected through it could read the API key saved in this
+// browser, so escape it before any innerHTML and check URLs before using them as links.
+
+window.RKG = window.RKG || {};
+
+RKG.util = (function() {
+  'use strict';
+
+  const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+  // Safe in HTML text and in quoted attribute values.
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
+  }
+
+  // Returns http(s) URLs unchanged; anything else (javascript:, data:) becomes '#'.
+  function safeUrl(url) {
+    const clean = String(url == null ? '' : url).trim();
+    return /^https?:\/\//i.test(clean) ? clean : '#';
+  }
+
+  return { escapeHtml, safeUrl };
+})();
+
+</script>
+<script>
 // Central state. All viz modules subscribe to changes.
 // Mutations only via setters defined here. Direct access for reads is fine.
 
@@ -1410,6 +1437,8 @@ window.RKG = window.RKG || {};
 RKG.search = (function() {
   'use strict';
 
+  const esc = RKG.util.escapeHtml;
+
   const $ = sel => document.querySelector(sel);
   const $$ = sel => [...document.querySelectorAll(sel)];
 
@@ -1523,7 +1552,7 @@ RKG.search = (function() {
       renderCandidates();
       if (lookupWarning) showStatus(lookupWarning, 'error');
     } catch (e) {
-      showStatus(`Search error: ${e.message}`, 'error');
+      showStatus(`Search error: ${esc(e.message)}`, 'error');
     } finally {
       setSearching(false);
     }
@@ -1541,7 +1570,7 @@ RKG.search = (function() {
     const noteEl = $('#inst-filter-note');
     if (noteEl) {
       if (resolvedInst.length) {
-        noteEl.innerHTML = `Institution filter applied: <span style="color:#1D7A35;font-weight:500;">${resolvedInst.slice(0, 2).join(', ')}${resolvedInst.length > 2 ? ` +${resolvedInst.length - 2} more` : ''}</span>`;
+        noteEl.innerHTML = `Institution filter applied: <span style="color:#1D7A35;font-weight:500;">${esc(resolvedInst.slice(0, 2).join(', '))}${resolvedInst.length > 2 ? ` +${resolvedInst.length - 2} more` : ''}</span>`;
         noteEl.classList.remove('hidden');
       } else {
         noteEl.classList.add('hidden');
@@ -1569,19 +1598,19 @@ RKG.search = (function() {
         <div class="candidate-card card rounded p-4 relative" data-idx="${i}">
           <input type="checkbox" class="candidate-check absolute top-3 right-3 w-4 h-4 cursor-pointer" data-idx="${i}">
           <div class="flex items-start gap-3 mb-1 pr-6">
-            <p class="font-medium text-base flex-1">${a.display_name}</p>
-            ${orcid ? `<span class="mono text-[10px] text-muted whitespace-nowrap">${orcid}</span>` : ''}
+            <p class="font-medium text-base flex-1">${esc(a.display_name)}</p>
+            ${orcid ? `<span class="mono text-[10px] text-muted whitespace-nowrap">${esc(orcid)}</span>` : ''}
           </div>
-          <p class="text-xs text-muted mb-1">${insts}</p>
-          ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#0071E3;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
+          <p class="text-xs text-muted mb-1">${esc(insts)}</p>
+          ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#0071E3;">&#9670; ${esc(areaLabels.join(' · '))}</p>` : '<div class="mb-2"></div>'}
           ${specEvidence ? `<p class="text-xs mb-2" style="color:#1D7A35;">Specialty evidence: ${specEvidence.matchedCount}/${specEvidence.sampleSize} top papers match</p>` : ''}
           ${a._specialtyUnverified ? `<p class="text-xs mb-2" style="color:#B25000;">Specialty not verified: the lookup failed</p>` : ''}
           ${dupCount > 1 ? `<p class="text-xs mb-2" style="color:#B25000;">${dupCount} possible duplicate IDs — check to merge if needed</p>` : ''}
           <div class="flex gap-3 text-xs">
-            <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
-            <span><span class="text-muted">Cited:</span> <span class="mono">${fmtNum(a.cited_by_count)}</span></span>
+            <span><span class="text-muted">Works:</span> <span class="mono">${esc(a.works_count)}</span></span>
+            <span><span class="text-muted">Cited:</span> <span class="mono">${esc(fmtNum(a.cited_by_count))}</span></span>
             ${a.summary_stats && a.summary_stats.h_index
-                ? `<span><span class="text-muted">h:</span> <span class="mono">${a.summary_stats.h_index}</span></span>`
+                ? `<span><span class="text-muted">h:</span> <span class="mono">${esc(a.summary_stats.h_index)}</span></span>`
                 : ''}
           </div>
         </div>
@@ -1817,12 +1846,12 @@ RKG.search = (function() {
 
   async function selectAuthor(author) {
     $('#candidates-section').classList.add('hidden');
-    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${author.display_name}...`);
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${esc(author.display_name)}...`);
     RKG.state.setAuthor(author);
     try {
       await _loadWorksAndActivate(author, [author.id]);
     } catch (e) {
-      showStatus(`Data loading failed: ${e.message}`, 'error');
+      showStatus(`Data loading failed: ${esc(e.message)}`, 'error');
     }
   }
 
@@ -1840,12 +1869,12 @@ RKG.search = (function() {
       orcid: (authors.find(a => a.orcid) || {}).orcid || null,
       _searchCriteria: authors[0]._searchCriteria || null,
     };
-    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${merged.display_name}...`);
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${esc(merged.display_name)}...`);
     RKG.state.setAuthor(merged);
     try {
       await _loadWorksAndActivate(merged, merged._mergedIds);
     } catch (e) {
-      showStatus(`Data loading failed: ${e.message}`, 'error');
+      showStatus(`Data loading failed: ${esc(e.message)}`, 'error');
     }
   }
 
@@ -1862,6 +1891,8 @@ window.RKG = window.RKG || {};
 
 RKG.bubbleTimeline = (function() {
   'use strict';
+
+  const esc = RKG.util.escapeHtml;
 
   if (typeof Chart !== 'undefined' && Chart.defaults && Chart.defaults.font) {
     Chart.defaults.font.family = 'Arial, "Helvetica Neue", Helvetica, "Segoe UI", system-ui, sans-serif';
@@ -1981,7 +2012,7 @@ RKG.bubbleTimeline = (function() {
     const topicHTML = [..._topicMap.entries()].map(([name, color]) => `
       <span class="flex items-center gap-1.5">
         <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;"></span>
-        <span class="truncate" style="max-width:14ch;" title="${name}">${name}</span>
+        <span class="truncate" style="max-width:14ch;" title="${esc(name)}">${esc(name)}</span>
       </span>
     `).join('');
 
@@ -2061,11 +2092,11 @@ RKG.bubbleTimeline = (function() {
     el.innerHTML = `
       <div style="${AF}font-weight:600;line-height:1.4;margin-bottom:5px;">
         ${doi
-          ? `<a href="${doi}" target="_blank" rel="noopener" style="${AF}color:#0071E3;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${title}</a>`
-          : `<span style="${AF}">${title}</span>`}
+          ? `<a href="${esc(doi)}" target="_blank" rel="noopener" style="${AF}color:#0071E3;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(title)}</a>`
+          : `<span style="${AF}">${esc(title)}</span>`}
       </div>
-      <div style="${AF}color:#515154;margin-bottom:3px;">${journal} · ${p.x}</div>
-      <div style="${AF}color:#515154;">${w.cited_by_count || 0} citations · ${roleLabel}${p._topic ? ' · ' + p._topic : ''}</div>
+      <div style="${AF}color:#515154;margin-bottom:3px;">${esc(journal)} · ${esc(p.x)}</div>
+      <div style="${AF}color:#515154;">${esc(w.cited_by_count || 0)} citations · ${roleLabel}${p._topic ? ' · ' + esc(p._topic) : ''}</div>
       ${doi ? `<div style="${AF}color:#AEAEB2;font-size:10px;margin-top:4px;">↗ Click to open paper</div>` : ''}
     `;
 
@@ -2211,6 +2242,8 @@ window.RKG = window.RKG || {};
 
 RKG.coauthorNetwork = (function() {
   'use strict';
+
+  const esc = RKG.util.escapeHtml;
 
   let _currentNodes = [];
   let _currentEdges = [];
@@ -2541,17 +2574,17 @@ RKG.coauthorNetwork = (function() {
     el.innerHTML = `
       <div style="padding:12px 14px; border-bottom:1px solid var(--rule);">
         <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:4px; margin-bottom:6px;">
-          <p style="font-weight:600; font-size:13px; line-height:1.35;">${node.name}</p>
+          <p style="font-weight:600; font-size:13px; line-height:1.35;">${esc(node.name)}</p>
           <button data-close-sidebar style="background:none; border:none; cursor:pointer; color:var(--ink-muted); font-size:18px; line-height:1; flex-shrink:0; padding:0 2px;">&times;</button>
         </div>
-        ${node.inst ? `<p style="font-size:11px; color:var(--ink-muted); margin-bottom:4px; line-height:1.4;">${node.inst}</p>` : ''}
+        ${node.inst ? `<p style="font-size:11px; color:var(--ink-muted); margin-bottom:4px; line-height:1.4;">${esc(node.inst)}</p>` : ''}
         <p style="font-size:11px; color:var(--ink-muted);"><strong style="color:var(--ink);">${node.count}</strong> joint papers with the focal author</p>
       </div>
       <div style="padding:10px 14px;">
         <p style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-muted); margin-bottom:8px;">Shared co-authors</p>
         ${connected.length ? connected.map((c, i) => `
           <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-top:1px solid var(--rule);">
-            <span style="font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:152px;" title="${c.name}">${i + 1}. ${c.name}</span>
+            <span style="font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:152px;" title="${esc(c.name)}">${i + 1}. ${esc(c.name)}</span>
             <span style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--ink-muted); flex-shrink:0; margin-left:4px;">${c.count}</span>
           </div>`).join('') : '<p style="font-size:11px; color:var(--ink-muted);">None</p>'}
       </div>`;
@@ -2591,7 +2624,7 @@ RKG.coauthorNetwork = (function() {
     entries.forEach(([topic, color]) => {
       html += `<div style="display:flex;align-items:center;gap:6px;">
         <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0;display:inline-block;"></span>
-        <span style="${FS}font-size:10.5px;">${topic.length > 23 ? topic.slice(0, 21) + '…' : topic}</span>
+        <span style="${FS}font-size:10.5px;">${esc(topic.length > 23 ? topic.slice(0, 21) + '…' : topic)}</span>
       </div>`;
     });
     div.innerHTML = html;
@@ -2625,6 +2658,8 @@ window.RKG = window.RKG || {};
 
 RKG.streamgraph = (function() {
   'use strict';
+
+  const esc = RKG.util.escapeHtml;
 
   const MAX_TOPICS = 8;
   const TOPIC_PALETTE = [
@@ -2844,8 +2879,8 @@ RKG.streamgraph = (function() {
         const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${topicColor.get(d.key)};margin-right:6px;vertical-align:-1px;"></span>`;
 
         _tooltip.innerHTML = `
-          <div style="font-weight:600;font-size:13px;margin-bottom:5px;">${year}</div>
-          <div style="display:flex;align-items:center;">${dot}<span style="font-size:12px;">${d.key.length > 30 ? d.key.slice(0, 28) + '…' : d.key}</span></div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:5px;">${esc(year)}</div>
+          <div style="display:flex;align-items:center;">${dot}<span style="font-size:12px;">${esc(d.key.length > 30 ? d.key.slice(0, 28) + '…' : d.key)}</span></div>
           <div style="font-size:12px;color:#6E6E73;margin-top:3px;">${cnt} papers · ${pct}% of year</div>
           <div style="font-size:11px;color:#86868B;margin-top:2px;">${total} papers total that year</div>
         `;
@@ -2934,6 +2969,8 @@ window.RKG = window.RKG || {};
 
 RKG.dotPlot = (function() {
   'use strict';
+
+  const esc = RKG.util.escapeHtml;
 
   const MAX_AUTHORS = 30;
   const TOPIC_PALETTE = [
@@ -3059,7 +3096,7 @@ RKG.dotPlot = (function() {
         ${legendEntries.map(([t, c]) => `
           <span style="display:flex;align-items:center;gap:5px;min-width:0;">
             <span style="width:10px;height:10px;border-radius:2px;background:${c};flex-shrink:0;display:inline-block;"></span>
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="${t}">${t}</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="${esc(t)}">${esc(t)}</span>
           </span>`).join('')}
       </div>` : '';
 
@@ -3177,6 +3214,8 @@ window.RKG = window.RKG || {};
 
 RKG.bubble3d = (function() {
   'use strict';
+
+  const esc = RKG.util.escapeHtml;
 
   const TOPIC_PALETTE = ['#0071E3','#248A3D','#B25000','#8944AB','#0092A8','#D70015','#5856D6'];
   const OTHER_COLOR = '#86868B';
@@ -3423,9 +3462,9 @@ RKG.bubble3d = (function() {
       const w = m._work;
       const roleLabel = { first: 'First author', senior: 'Last author', middle: 'Middle author' }[m._role] || '';
       _tooltip.innerHTML = [
-        `<strong>${(w.title || '').length > 72 ? w.title.slice(0, 70) + '…' : (w.title || '')}</strong>`,
-        [m._journal, w.publication_year].filter(Boolean).join(' · '),
-        [`${w.cited_by_count || 0} citations`, roleLabel, m._ifVal ? `IF ${m._ifVal.toFixed(1)}` : ''].filter(Boolean).join(' · '),
+        `<strong>${esc((w.title || '').length > 72 ? w.title.slice(0, 70) + '…' : (w.title || ''))}</strong>`,
+        esc([m._journal, w.publication_year].filter(Boolean).join(' · ')),
+        [`${esc(w.cited_by_count || 0)} citations`, roleLabel, m._ifVal ? `IF ${m._ifVal.toFixed(1)}` : ''].filter(Boolean).join(' · '),
       ].join('<br>');
       _tooltip.style.display = 'block';
       const cr = _container.getBoundingClientRect();
@@ -3474,6 +3513,8 @@ window.RKG = window.RKG || {};
 
 RKG.dashboard = (function() {
   'use strict';
+
+  const esc = RKG.util.escapeHtml;
 
   const $ = sel => document.querySelector(sel);
   const $$ = sel => [...document.querySelectorAll(sel)];
@@ -3742,7 +3783,7 @@ RKG.dashboard = (function() {
 
     $('#journals-tbody').innerHTML = rows.map(r => `
       <tr>
-        <td><div class="font-medium journal-name">${r.name}</div></td>
+        <td><div class="font-medium journal-name">${esc(r.name)}</div></td>
         <td class="text-right mono">${r.papers}</td>
         <td class="text-right mono">${fmtNum(r.cites)}</td>
         <td class="text-right">
@@ -3750,7 +3791,7 @@ RKG.dashboard = (function() {
             ? `<span class="pill pill-accent mono">${fmtFloat(r.if_2yr, 2)}</span>${r.if_source === 'OA' ? '<span class="text-muted" style="font-size:9px;margin-left:2px;" title="OpenAlex 2yr citedness">OA</span>' : ''}`
             : '<span class="text-muted">—</span>'}
         </td>
-        <td class="text-right mono">${r.h_index != null ? r.h_index : '—'}</td>
+        <td class="text-right mono">${r.h_index != null ? esc(r.h_index) : '—'}</td>
       </tr>
     `).join('') || `<tr><td colspan="5" class="text-center text-muted py-6">No data</td></tr>`;
   }
@@ -3786,8 +3827,8 @@ RKG.dashboard = (function() {
     $('#papers-tbody').innerHTML = sorted.slice(0, limit).map(w => {
       const role = RKG.state.getAuthorshipRole(w);
       const journal = w.primary_location && w.primary_location.source && w.primary_location.source.display_name || '';
-      const url = w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}`
-        : (w._pmid ? `https://pubmed.ncbi.nlm.nih.gov/${w._pmid}/` : (w.id || '#'));
+      const url = RKG.util.safeUrl(w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}`
+        : (w._pmid ? `https://pubmed.ncbi.nlm.nih.gov/${w._pmid}/` : w.id));
       const rolePill = {
         first: '<span class="pill pill-first">First</span>',
         senior: '<span class="pill pill-senior">Last</span>',
@@ -3797,21 +3838,21 @@ RKG.dashboard = (function() {
       // Provenance badges from the 3-stage pipeline (absent on pre-pipeline data)
       const src = w._sources || {};
       const meshTip = (w.mesh && w.mesh.length)
-        ? `MeSH: ${w.mesh.slice(0, 8).join(', ').replace(/"/g, '')}` : 'Verified on PubMed';
+        ? `MeSH: ${w.mesh.slice(0, 8).join(', ')}` : 'Verified on PubMed';
       const badges = [
         src.orcid ? '<span class="src-badge" title="Listed in ORCID registry">O</span>' : '',
-        src.pubmed ? `<span class="src-badge" title="${meshTip}">P</span>` : '',
+        src.pubmed ? `<span class="src-badge" title="${esc(meshTip)}">P</span>` : '',
         src.openalex === false ? '<span class="src-badge src-badge-warn" title="Not in OpenAlex — no citation/topic data; excluded from charts">!</span>' : '',
       ].join('');
       return `
         <tr>
-          <td class="mono">${w.publication_year || '—'}</td>
+          <td class="mono">${esc(w.publication_year || '—')}</td>
           <td>${rolePill}</td>
           <td>
-            <a href="${url}" target="_blank" class="font-medium hover:underline">${w.title || '(untitled)'}</a>${badges}
-            ${journal ? `<div class="text-xs text-muted mt-0.5 journal-name">${journal}</div>` : ''}
+            <a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="font-medium hover:underline">${esc(w.title || '(untitled)')}</a>${badges}
+            ${journal ? `<div class="text-xs text-muted mt-0.5 journal-name">${esc(journal)}</div>` : ''}
           </td>
-          <td class="text-right mono">${w.cited_by_count || 0}</td>
+          <td class="text-right mono">${esc(w.cited_by_count || 0)}</td>
         </tr>
       `;
     }).join('');

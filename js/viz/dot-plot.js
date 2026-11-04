@@ -9,6 +9,8 @@ window.RKG = window.RKG || {};
 RKG.dotPlot = (function() {
   'use strict';
 
+  const esc = RKG.util.escapeHtml;
+
   const MAX_AUTHORS = 30;
   const TOPIC_PALETTE = [
     '#0071E3', '#248A3D', '#B25000', '#8944AB',
@@ -133,7 +135,7 @@ RKG.dotPlot = (function() {
         ${legendEntries.map(([t, c]) => `
           <span style="display:flex;align-items:center;gap:5px;min-width:0;">
             <span style="width:10px;height:10px;border-radius:2px;background:${c};flex-shrink:0;display:inline-block;"></span>
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="${t}">${t}</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;" title="${esc(t)}">${esc(t)}</span>
           </span>`).join('')}
       </div>` : '';
 

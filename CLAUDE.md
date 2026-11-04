@@ -144,6 +144,7 @@ We tried an ego network first. **It failed** and is intentionally removed. Reaso
 ```
 index.html              entry point; loads scripts in order
 css/styles.css          all custom styles (Apple/macOS light theme)
+js/util.js              escapeHtml and safeUrl for putting external data into HTML
 js/api.js               OpenAlex API wrapper (searchAuthors, fetchAllWorks, fetchSourceStats)
 js/state.js             central state + pub/sub + filtered selectors
 js/search.js            author search & disambiguation UI
@@ -172,6 +173,7 @@ reference/
 - Polite OpenAlex pool: `?mailto=...` query param on EVERY request (configured in api.js).
 - Numeric formatting: round before displaying. Citation counts as integers, IF to 2 decimals.
 - Error handling: API failures show user-facing status message, never throw to console.
+- External data is untrusted: text from OpenAlex, ORCID and PubMed goes through `RKG.util.escapeHtml` before any `innerHTML`, including attribute values, and non-DOI links go through `RKG.util.safeUrl`. Slice text before escaping, never after. Injected script could read the API key saved in `localStorage`.
 
 ## Authorship role detection
 

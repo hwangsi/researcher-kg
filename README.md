@@ -92,7 +92,7 @@ extract_jcr.py        ← JCR PDF → full local IF table
 build_public_if.py    ← full table → committed public subset
 css/styles.css
 js/
-  api.js, state.js, search.js, dashboard.js, pubmed.js
+  util.js, api.js, state.js, search.js, dashboard.js, pubmed.js
   viz/
     bubble-timeline.js, coauthor-network.js
     streamgraph.js, dot-plot.js, bubble-3d.js

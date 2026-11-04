@@ -5,6 +5,8 @@ window.RKG = window.RKG || {};
 RKG.dashboard = (function() {
   'use strict';
 
+  const esc = RKG.util.escapeHtml;
+
   const $ = sel => document.querySelector(sel);
   const $$ = sel => [...document.querySelectorAll(sel)];
 
@@ -272,7 +274,7 @@ RKG.dashboard = (function() {
 
     $('#journals-tbody').innerHTML = rows.map(r => `
       <tr>
-        <td><div class="font-medium journal-name">${r.name}</div></td>
+        <td><div class="font-medium journal-name">${esc(r.name)}</div></td>
         <td class="text-right mono">${r.papers}</td>
         <td class="text-right mono">${fmtNum(r.cites)}</td>
         <td class="text-right">
@@ -280,7 +282,7 @@ RKG.dashboard = (function() {
             ? `<span class="pill pill-accent mono">${fmtFloat(r.if_2yr, 2)}</span>${r.if_source === 'OA' ? '<span class="text-muted" style="font-size:9px;margin-left:2px;" title="OpenAlex 2yr citedness">OA</span>' : ''}`
             : '<span class="text-muted">—</span>'}
         </td>
-        <td class="text-right mono">${r.h_index != null ? r.h_index : '—'}</td>
+        <td class="text-right mono">${r.h_index != null ? esc(r.h_index) : '—'}</td>
       </tr>
     `).join('') || `<tr><td colspan="5" class="text-center text-muted py-6">No data</td></tr>`;
   }
@@ -316,8 +318,8 @@ RKG.dashboard = (function() {
     $('#papers-tbody').innerHTML = sorted.slice(0, limit).map(w => {
       const role = RKG.state.getAuthorshipRole(w);
       const journal = w.primary_location && w.primary_location.source && w.primary_location.source.display_name || '';
-      const url = w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}`
-        : (w._pmid ? `https://pubmed.ncbi.nlm.nih.gov/${w._pmid}/` : (w.id || '#'));
+      const url = RKG.util.safeUrl(w.doi ? `https://doi.org/${w.doi.replace('https://doi.org/', '')}`
+        : (w._pmid ? `https://pubmed.ncbi.nlm.nih.gov/${w._pmid}/` : w.id));
       const rolePill = {
         first: '<span class="pill pill-first">First</span>',
         senior: '<span class="pill pill-senior">Last</span>',
@@ -327,21 +329,21 @@ RKG.dashboard = (function() {
       // Provenance badges from the 3-stage pipeline (absent on pre-pipeline data)
       const src = w._sources || {};
       const meshTip = (w.mesh && w.mesh.length)
-        ? `MeSH: ${w.mesh.slice(0, 8).join(', ').replace(/"/g, '')}` : 'Verified on PubMed';
+        ? `MeSH: ${w.mesh.slice(0, 8).join(', ')}` : 'Verified on PubMed';
       const badges = [
         src.orcid ? '<span class="src-badge" title="Listed in ORCID registry">O</span>' : '',
-        src.pubmed ? `<span class="src-badge" title="${meshTip}">P</span>` : '',
+        src.pubmed ? `<span class="src-badge" title="${esc(meshTip)}">P</span>` : '',
         src.openalex === false ? '<span class="src-badge src-badge-warn" title="Not in OpenAlex — no citation/topic data; excluded from charts">!</span>' : '',
       ].join('');
       return `
         <tr>
-          <td class="mono">${w.publication_year || '—'}</td>
+          <td class="mono">${esc(w.publication_year || '—')}</td>
           <td>${rolePill}</td>
           <td>
-            <a href="${url}" target="_blank" class="font-medium hover:underline">${w.title || '(untitled)'}</a>${badges}
-            ${journal ? `<div class="text-xs text-muted mt-0.5 journal-name">${journal}</div>` : ''}
+            <a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="font-medium hover:underline">${esc(w.title || '(untitled)')}</a>${badges}
+            ${journal ? `<div class="text-xs text-muted mt-0.5 journal-name">${esc(journal)}</div>` : ''}
           </td>
-          <td class="text-right mono">${w.cited_by_count || 0}</td>
+          <td class="text-right mono">${esc(w.cited_by_count || 0)}</td>
         </tr>
       `;
     }).join('');
