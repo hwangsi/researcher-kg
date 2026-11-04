@@ -151,7 +151,7 @@ js/search.js            author search & disambiguation UI
 js/dashboard.js         dashboard controller, tabs, stats cards
 js/viz/
   bubble-timeline.js    Chart.js bubble chart with authorship encoding
-  bubble-3d.js          Three.js + OrbitControls 3D timeline (X=year, Y=IF, Z=√citations)
+  bubble-3d.js          Publication Explorer: D3 SVG numeric projections + Three.js orthographic 3D
   coauthor-network.js   D3 force-directed co-author network (no ego node)
   streamgraph.js        D3 wiggle streamgraph — topic evolution (top 8 topics)
   dot-plot.js           Chart.js bubble chart as co-author × year dot plot (top 30)
@@ -235,3 +235,12 @@ DON'T:
 ## Roadmap
 
 See `ROADMAP.md`.
+
+## Publication Explorer (3D Timeline tab)
+
+- Defaults to Year × Citations; Year × Journal IF, IF × Citations and 3D Explore share local selection and filters.
+- D3 SVG handles the 2D projections; Three.js / OrbitControls handles orthographic 3D with projected HTML ticks and selection-only guides. Stop the animation loop when hidden.
+- Topic colors and numeric domains derive from the entire author dataset, not the filtered subset. Fit is explicit; Reset restores career-wide axes. Default numeric transform is square root, with original values on ticks and a linear alternative.
+- Equal-size points; color can represent topic or authorship. Legend isolation is local. Click selects (never opens a DOI directly); nearby overlapping papers are exposed in the searchable, paginated list.
+- Missing metrics are null, not zero. A paper missing a citation count or journal metric stays in the list and gets an explanatory message; a paper with no publication year is dropped by `getFilteredWorks`, as in every view. Detail panel distinguishes JCR 2025 JIF and OA fallback; these are current metrics, not historical IF.
+- Offline browser fixtures: `tests/fixtures/explorer-data.js`; functional checks: `ego-browser nodejs < tests/explorer-checks.mjs` (adjust the repository root constant if needed). Includes 1/180/600 papers, missing/zero values, filters, persistent selection, and HTML escaping.

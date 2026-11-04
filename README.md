@@ -24,12 +24,54 @@ python3 -m http.server 8000
 - **Optional OpenAlex API key** — without a key, everyone on your network shares OpenAlex's free daily limit. Enter your own [free key](https://openalex.org/settings/api-key) in the search form for 10× the budget. It stays in your browser and is sent only to OpenAlex.
 - **3-stage works retrieval** — ORCID registry → OpenAlex → PubMed (see below)
 - **Bubble Timeline** — year × journal × citations × topic, with authorship role (first / last / middle) encoded on each bubble
-- **3D Timeline** — Three.js; X: year, Y: journal IF, Z: citations
+- **3D Timeline / Publication Explorer** — three 2D projections and an orthographic 3D view, with stable colors and scales, numerical axes, persistent paper details, and overlapping-point selection. [See views and controls below.](#publication-explorer)
 - **Co-author Network** — D3 force-directed co-occurrence graph (focal author excluded by design)
 - **Topic Streamgraph** — how research focus shifted over the years
 - **Co-author Dot Plot** — co-author × year scatter, long-term vs one-shot collaborations
 - **Journal table** — JCR Impact Factor with OpenAlex fallback (details below)
 - **Paper list** — role filter, DOI/PubMed links, per-paper source badges (O = ORCID, P = PubMed/MeSH, ! = not in OpenAlex)
+
+## Publication Explorer
+
+Select an author, then open the **3D Timeline** tab. The explorer starts with **Year × Citations** and keeps the selected paper's details open as you switch views.
+
+| View | Axes | Use it to |
+|---|---|---|
+| **Year × Citations** (default) | Publication year × paper citations | Find highly cited papers across a career |
+| **Year × Journal IF** | Publication year × journal metric | Compare publication venues over time |
+| **IF × Citations** | Journal metric × paper citations | Compare journal-level and paper-level citation metrics |
+| **3D Explore** | X: year, Y: journal metric, Z: citations | Explore all three dimensions with numerical ticks and selection guides |
+
+### Reading and selecting papers
+
+- Each paper has an equal-sized mark; the selected paper is emphasized. **Color** switches between topic and authorship role. Topic colors are assigned from the author's full dataset and remain stable under filtering.
+- **Scale** switches numeric axes between square-root scaling (default) and linear scaling. Tick labels always show original values; the year axis stays linear.
+- Click a point or a paper-list entry to pin its title, journal, year, citations, authorship role, topic, and journal metric. Open the publication through the explicit DOI or PubMed link when available.
+- Clicking overlapping or nearby points narrows the list to those papers. **Show all** restores the filtered list. Search matches titles and journal names in the list; it does not change the chart. **Show more papers** loads additional list entries.
+- Selected points have coordinate guides in both 2D and 3D. If a filter hides the selected paper, its details stay open with an explanatory notice.
+
+### Navigation and filters
+
+| Action | 2D views | 3D Explore |
+|---|---|---|
+| Move the view | Drag to pan | Drag to rotate; Shift-drag to pan |
+| Zoom | Scroll or pinch | Scroll |
+| Fit | **Fit filtered papers** fits the current year, role, co-author, and legend filters | Same; also restores the initial camera angle |
+| Reset | **Reset view** restores career-wide axes and resets zoom/pan | Same; also restores the initial camera angle |
+
+The dashboard's year, authorship-role, and co-author filters apply to the explorer. Click a legend entry to isolate a topic or role within this view; click it again or choose **Show all** to clear that local filter. Career-wide axes remain fixed under filtering unless you explicitly fit them. Changing dashboard filters restores the career-wide scope. Resetting the view does not clear filters or the selected paper.
+
+Unknown citations or journal metrics are never plotted as zero. Papers missing a citation count or journal metric remain in the filtered paper list, with a count explaining their omission from the chart. A genuine zero remains plotted. Journal details distinguish **JCR 2025 JIF** from **OpenAlex 2-year mean citedness**; these are current journal metrics, not the journal's IF in the paper's publication year.
+
+On narrow screens, details and the paper list move below the chart. If 3D cannot initialize, the three 2D views and paper details remain available.
+
+### Screenshots
+
+These screenshots use **180 synthetic publications**, not a real researcher profile.
+
+![Publication Explorer: year versus citations with a selected paper](output/timeline-preview/publication-explorer-2d.png)
+
+![Publication Explorer: 3D view with numerical axes and selection guides](output/timeline-preview/publication-explorer-3d.png)
 
 ## How works are retrieved (3-stage pipeline)
 
@@ -76,11 +118,35 @@ python build_public_if.py                     # public subset (commit this one)
 |---|---|
 | Tailwind CDN | UI utility classes |
 | Chart.js | Bubble timeline, dot plot |
-| D3 v7 | Co-author network, streamgraph |
-| Three.js | 3D bubble timeline |
+| D3 v7 | Co-author network, streamgraph, Publication Explorer's 2D projections |
+| Three.js + OrbitControls | Publication Explorer's orthographic 3D view |
 | OpenAlex API | Papers, authors, journals |
 | ORCID Public API | Author-curated publication list |
 | PubMed E-utilities | MeSH terms, Medline recall |
+
+## Build and validation
+
+The modular app runs directly from `index.html`. To regenerate the single-file distributable after changing HTML, CSS, or JavaScript:
+
+```bash
+python3 build_dist.py
+```
+
+This updates `researcher-kg.html`, inlines local CSS/JS, and excludes the licensed full JCR table. Both entry points still load third-party libraries from CDNs and require network access for live publication data.
+
+### Publication Explorer checks
+
+The browser checks use deterministic synthetic publications and make no OpenAlex, ORCID, or PubMed requests. CDN access is still needed to load the app's libraries.
+
+With **Ego Browser** installed, set `root` in `tests/explorer-checks.mjs` to your checkout's absolute path. Its `taskSpace` name must identify an agent-owned browser workspace; choose a new name if an earlier preview workspace has been handed back to the user. Run from the repository root:
+
+```bash
+ego-browser nodejs < tests/explorer-checks.mjs
+```
+
+The script contains **24 functional checks** covering stable coordinates and colors under filtering, selection across views, missing versus zero metrics, OA attribution, legend filters, explicit fit/reset, empty results, single-year data, 600-paper profiles, pagination, HTML escaping, and 3D axes. Fixtures are in `tests/fixtures/explorer-data.js`.
+
+Additional browser validation for this version covered overlapping-point selection, wheel zoom, camera rotation without accidental selection, a 390px viewport, the single-file distributable, and fallback when 3D is unavailable.
 
 ## File structure
 
@@ -100,6 +166,12 @@ data/
   jcr-if-public.js    ← committed IF subset (radiology + major journals)
   jcr-if.js           ← full ISSN → IF table (gitignored, local only)
   jcr-if.json         ← full table + name/rank/category (gitignored)
+tests/
+  explorer-checks.mjs ← Publication Explorer browser checks (Ego Browser)
+  fixtures/explorer-data.js ← synthetic publications for UI validation
+output/timeline-preview/
+  publication-explorer-2d.png ← final 2D preview (synthetic data)
+  publication-explorer-3d.png ← final 3D preview (synthetic data)
 reference/mvp-v1.html ← original MVP, kept for reference
 ```
 
