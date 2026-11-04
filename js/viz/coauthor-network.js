@@ -8,6 +8,8 @@ window.RKG = window.RKG || {};
 RKG.coauthorNetwork = (function() {
   'use strict';
 
+  const esc = RKG.util.escapeHtml;
+
   let _currentNodes = [];
   let _currentEdges = [];
 
@@ -337,17 +339,17 @@ RKG.coauthorNetwork = (function() {
     el.innerHTML = `
       <div style="padding:12px 14px; border-bottom:1px solid var(--rule);">
         <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:4px; margin-bottom:6px;">
-          <p style="font-weight:600; font-size:13px; line-height:1.35;">${node.name}</p>
+          <p style="font-weight:600; font-size:13px; line-height:1.35;">${esc(node.name)}</p>
           <button data-close-sidebar style="background:none; border:none; cursor:pointer; color:var(--ink-muted); font-size:18px; line-height:1; flex-shrink:0; padding:0 2px;">&times;</button>
         </div>
-        ${node.inst ? `<p style="font-size:11px; color:var(--ink-muted); margin-bottom:4px; line-height:1.4;">${node.inst}</p>` : ''}
+        ${node.inst ? `<p style="font-size:11px; color:var(--ink-muted); margin-bottom:4px; line-height:1.4;">${esc(node.inst)}</p>` : ''}
         <p style="font-size:11px; color:var(--ink-muted);"><strong style="color:var(--ink);">${node.count}</strong> joint papers with the focal author</p>
       </div>
       <div style="padding:10px 14px;">
         <p style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-muted); margin-bottom:8px;">Shared co-authors</p>
         ${connected.length ? connected.map((c, i) => `
           <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-top:1px solid var(--rule);">
-            <span style="font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:152px;" title="${c.name}">${i + 1}. ${c.name}</span>
+            <span style="font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:152px;" title="${esc(c.name)}">${i + 1}. ${esc(c.name)}</span>
             <span style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--ink-muted); flex-shrink:0; margin-left:4px;">${c.count}</span>
           </div>`).join('') : '<p style="font-size:11px; color:var(--ink-muted);">None</p>'}
       </div>`;
@@ -387,7 +389,7 @@ RKG.coauthorNetwork = (function() {
     entries.forEach(([topic, color]) => {
       html += `<div style="display:flex;align-items:center;gap:6px;">
         <span style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0;display:inline-block;"></span>
-        <span style="${FS}font-size:10.5px;">${topic.length > 23 ? topic.slice(0, 21) + '…' : topic}</span>
+        <span style="${FS}font-size:10.5px;">${esc(topic.length > 23 ? topic.slice(0, 21) + '…' : topic)}</span>
       </div>`;
     });
     div.innerHTML = html;

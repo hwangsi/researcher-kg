@@ -9,6 +9,8 @@ window.RKG = window.RKG || {};
 RKG.streamgraph = (function() {
   'use strict';
 
+  const esc = RKG.util.escapeHtml;
+
   const MAX_TOPICS = 8;
   const TOPIC_PALETTE = [
     '#0071E3', '#248A3D', '#B25000', '#8944AB',
@@ -227,8 +229,8 @@ RKG.streamgraph = (function() {
         const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${topicColor.get(d.key)};margin-right:6px;vertical-align:-1px;"></span>`;
 
         _tooltip.innerHTML = `
-          <div style="font-weight:600;font-size:13px;margin-bottom:5px;">${year}</div>
-          <div style="display:flex;align-items:center;">${dot}<span style="font-size:12px;">${d.key.length > 30 ? d.key.slice(0, 28) + '…' : d.key}</span></div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:5px;">${esc(year)}</div>
+          <div style="display:flex;align-items:center;">${dot}<span style="font-size:12px;">${esc(d.key.length > 30 ? d.key.slice(0, 28) + '…' : d.key)}</span></div>
           <div style="font-size:12px;color:#6E6E73;margin-top:3px;">${cnt} papers · ${pct}% of year</div>
           <div style="font-size:11px;color:#86868B;margin-top:2px;">${total} papers total that year</div>
         `;
