@@ -5,6 +5,8 @@ window.RKG = window.RKG || {};
 RKG.search = (function() {
   'use strict';
 
+  const esc = RKG.util.escapeHtml;
+
   const $ = sel => document.querySelector(sel);
   const $$ = sel => [...document.querySelectorAll(sel)];
 
@@ -118,7 +120,7 @@ RKG.search = (function() {
       renderCandidates();
       if (lookupWarning) showStatus(lookupWarning, 'error');
     } catch (e) {
-      showStatus(`Search error: ${e.message}`, 'error');
+      showStatus(`Search error: ${esc(e.message)}`, 'error');
     } finally {
       setSearching(false);
     }
@@ -136,7 +138,7 @@ RKG.search = (function() {
     const noteEl = $('#inst-filter-note');
     if (noteEl) {
       if (resolvedInst.length) {
-        noteEl.innerHTML = `Institution filter applied: <span style="color:#1D7A35;font-weight:500;">${resolvedInst.slice(0, 2).join(', ')}${resolvedInst.length > 2 ? ` +${resolvedInst.length - 2} more` : ''}</span>`;
+        noteEl.innerHTML = `Institution filter applied: <span style="color:#1D7A35;font-weight:500;">${esc(resolvedInst.slice(0, 2).join(', '))}${resolvedInst.length > 2 ? ` +${resolvedInst.length - 2} more` : ''}</span>`;
         noteEl.classList.remove('hidden');
       } else {
         noteEl.classList.add('hidden');
@@ -164,19 +166,19 @@ RKG.search = (function() {
         <div class="candidate-card card rounded p-4 relative" data-idx="${i}">
           <input type="checkbox" class="candidate-check absolute top-3 right-3 w-4 h-4 cursor-pointer" data-idx="${i}">
           <div class="flex items-start gap-3 mb-1 pr-6">
-            <p class="font-medium text-base flex-1">${a.display_name}</p>
-            ${orcid ? `<span class="mono text-[10px] text-muted whitespace-nowrap">${orcid}</span>` : ''}
+            <p class="font-medium text-base flex-1">${esc(a.display_name)}</p>
+            ${orcid ? `<span class="mono text-[10px] text-muted whitespace-nowrap">${esc(orcid)}</span>` : ''}
           </div>
-          <p class="text-xs text-muted mb-1">${insts}</p>
-          ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#0071E3;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
+          <p class="text-xs text-muted mb-1">${esc(insts)}</p>
+          ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#0071E3;">&#9670; ${esc(areaLabels.join(' · '))}</p>` : '<div class="mb-2"></div>'}
           ${specEvidence ? `<p class="text-xs mb-2" style="color:#1D7A35;">Specialty evidence: ${specEvidence.matchedCount}/${specEvidence.sampleSize} top papers match</p>` : ''}
           ${a._specialtyUnverified ? `<p class="text-xs mb-2" style="color:#B25000;">Specialty not verified: the lookup failed</p>` : ''}
           ${dupCount > 1 ? `<p class="text-xs mb-2" style="color:#B25000;">${dupCount} possible duplicate IDs — check to merge if needed</p>` : ''}
           <div class="flex gap-3 text-xs">
-            <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
-            <span><span class="text-muted">Cited:</span> <span class="mono">${fmtNum(a.cited_by_count)}</span></span>
+            <span><span class="text-muted">Works:</span> <span class="mono">${esc(a.works_count)}</span></span>
+            <span><span class="text-muted">Cited:</span> <span class="mono">${esc(fmtNum(a.cited_by_count))}</span></span>
             ${a.summary_stats && a.summary_stats.h_index
-                ? `<span><span class="text-muted">h:</span> <span class="mono">${a.summary_stats.h_index}</span></span>`
+                ? `<span><span class="text-muted">h:</span> <span class="mono">${esc(a.summary_stats.h_index)}</span></span>`
                 : ''}
           </div>
         </div>
@@ -412,12 +414,12 @@ RKG.search = (function() {
 
   async function selectAuthor(author) {
     $('#candidates-section').classList.add('hidden');
-    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${author.display_name}...`);
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${esc(author.display_name)}...`);
     RKG.state.setAuthor(author);
     try {
       await _loadWorksAndActivate(author, [author.id]);
     } catch (e) {
-      showStatus(`Data loading failed: ${e.message}`, 'error');
+      showStatus(`Data loading failed: ${esc(e.message)}`, 'error');
     }
   }
 
@@ -435,12 +437,12 @@ RKG.search = (function() {
       orcid: (authors.find(a => a.orcid) || {}).orcid || null,
       _searchCriteria: authors[0]._searchCriteria || null,
     };
-    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${merged.display_name}...`);
+    showStatus(`<span class="loader" style="vertical-align:-2px;"></span> Loading works for ${esc(merged.display_name)}...`);
     RKG.state.setAuthor(merged);
     try {
       await _loadWorksAndActivate(merged, merged._mergedIds);
     } catch (e) {
-      showStatus(`Data loading failed: ${e.message}`, 'error');
+      showStatus(`Data loading failed: ${esc(e.message)}`, 'error');
     }
   }
 

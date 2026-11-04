@@ -7,6 +7,8 @@ window.RKG = window.RKG || {};
 RKG.bubbleTimeline = (function() {
   'use strict';
 
+  const esc = RKG.util.escapeHtml;
+
   if (typeof Chart !== 'undefined' && Chart.defaults && Chart.defaults.font) {
     Chart.defaults.font.family = 'Arial, "Helvetica Neue", Helvetica, "Segoe UI", system-ui, sans-serif';
     Chart.defaults.font.size = 11;
@@ -125,7 +127,7 @@ RKG.bubbleTimeline = (function() {
     const topicHTML = [..._topicMap.entries()].map(([name, color]) => `
       <span class="flex items-center gap-1.5">
         <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;"></span>
-        <span class="truncate" style="max-width:14ch;" title="${name}">${name}</span>
+        <span class="truncate" style="max-width:14ch;" title="${esc(name)}">${esc(name)}</span>
       </span>
     `).join('');
 
@@ -205,11 +207,11 @@ RKG.bubbleTimeline = (function() {
     el.innerHTML = `
       <div style="${AF}font-weight:600;line-height:1.4;margin-bottom:5px;">
         ${doi
-          ? `<a href="${doi}" target="_blank" rel="noopener" style="${AF}color:#0071E3;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${title}</a>`
-          : `<span style="${AF}">${title}</span>`}
+          ? `<a href="${esc(doi)}" target="_blank" rel="noopener" style="${AF}color:#0071E3;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(title)}</a>`
+          : `<span style="${AF}">${esc(title)}</span>`}
       </div>
-      <div style="${AF}color:#515154;margin-bottom:3px;">${journal} · ${p.x}</div>
-      <div style="${AF}color:#515154;">${w.cited_by_count || 0} citations · ${roleLabel}${p._topic ? ' · ' + p._topic : ''}</div>
+      <div style="${AF}color:#515154;margin-bottom:3px;">${esc(journal)} · ${esc(p.x)}</div>
+      <div style="${AF}color:#515154;">${esc(w.cited_by_count || 0)} citations · ${roleLabel}${p._topic ? ' · ' + esc(p._topic) : ''}</div>
       ${doi ? `<div style="${AF}color:#AEAEB2;font-size:10px;margin-top:4px;">↗ Click to open paper</div>` : ''}
     `;
 
