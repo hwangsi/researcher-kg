@@ -505,15 +505,18 @@ RKG.api = (function() {
 
   // Hydrate specific DOIs from OpenAlex (≤50 per filter call).
   // DOIs containing ',' or '|' are skipped — they'd corrupt the filter syntax.
+  // The returned array carries _failedBatches: chunks that failed.
   async function fetchWorksByDois(dois) {
     const clean = [...new Set((dois || []).map(normalizeDoi).filter(d => d && !/[,|]/.test(d)))];
     const works = [];
+    works._failedBatches = 0;
     for (let i = 0; i < clean.length; i += 50) {
       const chunk = clean.slice(i, i + 50);
       try {
         const data = await _fetch(`/works?filter=doi:${chunk.join('|')}&per-page=50&select=${WORK_SELECT}`);
         works.push(...data.results);
       } catch (e) {
+        works._failedBatches++;
         console.warn('DOI batch hydration failed', e);
       }
     }
