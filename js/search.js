@@ -399,7 +399,7 @@ RKG.search = (function() {
       warnings.push('Some PubMed lookups failed, so MeSH terms and Medline-only papers may be missing.');
     }
     if (stats._failedBatches) {
-      warnings.push('Some journal details could not be loaded, so some journal names and Impact Factors may be missing.');
+      warnings.push('Some journal details could not be loaded, so some Impact Factors may be missing.');
     }
     if (orcidRegistryFailed || orcidLookupIncomplete || pubmedIncomplete || stats._failedBatches) {
       warnings.push('Search again to retry.');

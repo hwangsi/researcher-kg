@@ -2030,7 +2030,7 @@ RKG.search = (function() {
       warnings.push('Some PubMed lookups failed, so MeSH terms and Medline-only papers may be missing.');
     }
     if (stats._failedBatches) {
-      warnings.push('Some journal details could not be loaded, so some journal names and Impact Factors may be missing.');
+      warnings.push('Some journal details could not be loaded, so some Impact Factors may be missing.');
     }
     if (orcidRegistryFailed || orcidLookupIncomplete || pubmedIncomplete || stats._failedBatches) {
       warnings.push('Search again to retry.');
@@ -2152,16 +2152,20 @@ RKG.bubbleTimeline = (function() {
 
   function _buildJournalsList(works, sourceStats) {
     const counts = new Map();
+    const workNames = new Map();
     for (const w of works) {
-      const sid = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      const source = w.primary_location && w.primary_location.source;
+      const sid = source && source.id;
       if (!sid) continue;
       counts.set(sid, (counts.get(sid) || 0) + 1);
+      if (!workNames.get(sid)) workNames.set(sid, source.display_name);
     }
     const entries = [...counts.entries()].map(([sid, count]) => {
       const stat = sourceStats.get(sid) || {};
       return {
         sid, count,
-        name: stat.display_name || 'Unknown',
+        // A failed journal lookup leaves no stat, but the work's own record still names the journal.
+        name: stat.display_name || workNames.get(sid) || 'Unknown',
         if_2yr: stat.if_2yr || 0,
       };
     });
@@ -4055,17 +4059,20 @@ RKG.dashboard = (function() {
     const s = RKG.state.get();
     const counts = new Map();
     for (const w of works) {
-      const sid = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      const source = w.primary_location && w.primary_location.source;
+      const sid = source && source.id;
       if (!sid) continue;
-      if (!counts.has(sid)) counts.set(sid, { papers: 0, cites: 0 });
+      if (!counts.has(sid)) counts.set(sid, { papers: 0, cites: 0, workName: null });
       const o = counts.get(sid);
       o.papers++;
       o.cites += w.cited_by_count || 0;
+      o.workName = o.workName || source.display_name;
     }
     const rows = [...counts.entries()]
       .map(([sid, c]) => {
         const stat = s.sourceStats.get(sid) || {};
-        return { sid, name: stat.display_name || 'Unknown', if_2yr: stat.if_2yr, if_source: stat.if_source, h_index: stat.h_index, ...c };
+        // A failed journal lookup leaves no stat, but the work's own record still names the journal.
+        return { sid, name: stat.display_name || c.workName || 'Unknown', if_2yr: stat.if_2yr, if_source: stat.if_source, h_index: stat.h_index, ...c };
       });
 
     const jc = _journalSort;

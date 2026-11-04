@@ -242,17 +242,20 @@ RKG.dashboard = (function() {
     const s = RKG.state.get();
     const counts = new Map();
     for (const w of works) {
-      const sid = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      const source = w.primary_location && w.primary_location.source;
+      const sid = source && source.id;
       if (!sid) continue;
-      if (!counts.has(sid)) counts.set(sid, { papers: 0, cites: 0 });
+      if (!counts.has(sid)) counts.set(sid, { papers: 0, cites: 0, workName: null });
       const o = counts.get(sid);
       o.papers++;
       o.cites += w.cited_by_count || 0;
+      o.workName = o.workName || source.display_name;
     }
     const rows = [...counts.entries()]
       .map(([sid, c]) => {
         const stat = s.sourceStats.get(sid) || {};
-        return { sid, name: stat.display_name || 'Unknown', if_2yr: stat.if_2yr, if_source: stat.if_source, h_index: stat.h_index, ...c };
+        // A failed journal lookup leaves no stat, but the work's own record still names the journal.
+        return { sid, name: stat.display_name || c.workName || 'Unknown', if_2yr: stat.if_2yr, if_source: stat.if_source, h_index: stat.h_index, ...c };
       });
 
     const jc = _journalSort;

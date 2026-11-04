@@ -68,16 +68,20 @@ RKG.bubbleTimeline = (function() {
 
   function _buildJournalsList(works, sourceStats) {
     const counts = new Map();
+    const workNames = new Map();
     for (const w of works) {
-      const sid = w.primary_location && w.primary_location.source && w.primary_location.source.id;
+      const source = w.primary_location && w.primary_location.source;
+      const sid = source && source.id;
       if (!sid) continue;
       counts.set(sid, (counts.get(sid) || 0) + 1);
+      if (!workNames.get(sid)) workNames.set(sid, source.display_name);
     }
     const entries = [...counts.entries()].map(([sid, count]) => {
       const stat = sourceStats.get(sid) || {};
       return {
         sid, count,
-        name: stat.display_name || 'Unknown',
+        // A failed journal lookup leaves no stat, but the work's own record still names the journal.
+        name: stat.display_name || workNames.get(sid) || 'Unknown',
         if_2yr: stat.if_2yr || 0,
       };
     });
