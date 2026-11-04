@@ -13,9 +13,12 @@ RKG.search = (function() {
 
   function init() {
     $('#search-btn').addEventListener('click', runSearch);
-    ['#author-name', '#author-institution', '#author-specialty', '#author-orcid-input'].forEach(id => {
+    ['#author-name', '#author-institution', '#author-specialty', '#author-orcid-input', '#openalex-key-input'].forEach(id => {
       $(id).addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
     });
+    $('#openalex-key-input').value = RKG.api.getApiKey();
+    _applyApiKey();
+    $('#openalex-key-input').addEventListener('input', _applyApiKey);
     $('#merge-selected-btn').addEventListener('click', () => {
       if (_selectedIds.size < 2) return;
       mergeAndSelect([..._selectedIds].map(i => _candidates[i]));
@@ -54,6 +57,28 @@ RKG.search = (function() {
     $('#merge-count').textContent = n;
   }
 
+  function _applyApiKey() {
+    const value = $('#openalex-key-input').value;
+    const accepted = RKG.api.setApiKey(value);
+    $('#openalex-key-status').textContent = !value.trim()
+      ? ''
+      : (accepted ? 'Saved in this browser' : "That doesn't look like an API key");
+  }
+
+  // Warning for lookups that failed during author search, or '' if none did.
+  function _lookupWarning(candidates) {
+    const parts = [];
+    if (candidates._instLookupFailed) {
+      parts.push('The institution lookup failed, so matching authors may be missing.');
+    }
+    const unverified = candidates.filter(a => a._specialtyUnverified).length;
+    if (unverified) {
+      parts.push(`The specialty could not be checked for ${unverified} candidate${unverified === 1 ? '' : 's'} because a lookup failed, so they may not match it.`);
+    }
+    if (parts.length) parts.push('Search again to retry.');
+    return parts.join(' ');
+  }
+
   async function runSearch() {
     const orcid = $('#author-orcid-input').value.trim();
     const name = $('#author-name').value.trim();
@@ -73,8 +98,11 @@ RKG.search = (function() {
 
     try {
       _candidates = await RKG.api.searchAuthors({ name, institution: inst, specialty, orcid, koreaOnly });
+      const lookupWarning = _lookupWarning(_candidates);
       if (!_candidates.length) {
-        if (orcid) {
+        if (lookupWarning) {
+          showStatus(lookupWarning, 'error');
+        } else if (orcid) {
           showStatus('The ORCID was found, but no author matches all the name/institution/specialty conditions you entered.', 'error');
         } else if (inst || specialty) {
           showStatus('No author matches all the name/institution/specialty conditions. Try relaxing them one at a time.', 'error');
@@ -88,6 +116,7 @@ RKG.search = (function() {
         return;
       }
       renderCandidates();
+      if (lookupWarning) showStatus(lookupWarning, 'error');
     } catch (e) {
       showStatus(`Search error: ${e.message}`, 'error');
     } finally {
@@ -141,6 +170,7 @@ RKG.search = (function() {
           <p class="text-xs text-muted mb-1">${insts}</p>
           ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#0071E3;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
           ${specEvidence ? `<p class="text-xs mb-2" style="color:#1D7A35;">Specialty evidence: ${specEvidence.matchedCount}/${specEvidence.sampleSize} top papers match</p>` : ''}
+          ${a._specialtyUnverified ? `<p class="text-xs mb-2" style="color:#B25000;">Specialty not verified: the lookup failed</p>` : ''}
           ${dupCount > 1 ? `<p class="text-xs mb-2" style="color:#B25000;">${dupCount} possible duplicate IDs — check to merge if needed</p>` : ''}
           <div class="flex gap-3 text-xs">
             <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
@@ -366,7 +396,10 @@ RKG.search = (function() {
     if (pubmedIncomplete) {
       warnings.push('Some PubMed lookups failed, so MeSH terms and Medline-only papers may be missing.');
     }
-    if (orcidRegistryFailed || orcidLookupIncomplete || pubmedIncomplete) {
+    if (stats._failedBatches) {
+      warnings.push('Some journal details could not be loaded, so some journal names and Impact Factors may be missing.');
+    }
+    if (orcidRegistryFailed || orcidLookupIncomplete || pubmedIncomplete || stats._failedBatches) {
       warnings.push('Search again to retry.');
     }
     if (warnings.length) {

@@ -221,8 +221,15 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: v
         <input id="korea-only-chk" type="checkbox" class="w-4 h-4 cursor-pointer accent-[#0071E3]">
         <span class="text-sm">Korean institutions only</span>
       </label>
+      <div class="w-full max-w-[320px]">
+        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2" for="openalex-key-input">OpenAlex API Key (optional)</label>
+        <input id="openalex-key-input" type="password" class="input-field w-full px-4 py-2.5 rounded text-sm mono" placeholder="Paste your key" autocomplete="new-password" spellcheck="false">
+      </div>
+      <a href="https://openalex.org/settings/api-key" target="_blank" rel="noopener noreferrer" class="text-sm underline-offset-2 hover:underline mb-2.5" style="color:#0071E3;">Get a free key</a>
+      <span id="openalex-key-status" class="text-xs text-muted mb-3"></span>
     </div>
     <p class="text-xs text-muted mt-3">Institution: a keyword from the institution name (e.g. Bundang). Specialty: a department name (e.g. Radiology). If many authors share the name, check <b>Korean institutions only</b>. ORCID gives the most accurate match.</p>
+    <p class="text-xs text-muted mt-1">API key: not required, but without one everyone on your network shares OpenAlex's small free daily limit. Your key stays in this browser and is sent only to OpenAlex.</p>
   </section>
 
   <div id="status" class="hidden mb-6"></div>
@@ -608,13 +615,66 @@ RKG.api = (function() {
 
   const POLITE_EMAIL = 'researcher-kg@example.com';
   const BASE = 'https://api.openalex.org';
+  const API_KEY_STORAGE = 'rkg.openalexApiKey';
+
+  // Optional user-supplied OpenAlex key. It lives only in this browser and is sent only
+  // to OpenAlex, in a header so it stays out of URLs and console logs.
+  let _apiKey = _loadStoredApiKey();
+
+  function _loadStoredApiKey() {
+    try {
+      return localStorage.getItem(API_KEY_STORAGE) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function getApiKey() {
+    return _apiKey;
+  }
+
+  // Returns false if the text can't be a key; header values must be printable ASCII.
+  function setApiKey(key) {
+    const clean = (key || '').trim();
+    const valid = !clean || /^[\x21-\x7E]+$/.test(clean);
+    _apiKey = valid ? clean : '';
+    try {
+      if (_apiKey) localStorage.setItem(API_KEY_STORAGE, _apiKey);
+      else localStorage.removeItem(API_KEY_STORAGE);
+    } catch (_) {
+      // Storage blocked: the key still works until the page is closed.
+    }
+    return valid;
+  }
+
+  function _resetTimeText() {
+    const now = new Date();
+    const midnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+    const local = new Date(midnightUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return `It resets at ${local} your time.`;
+  }
+
+  function _errorMessage(res, path) {
+    if (res.status === 429) {
+      if (res.headers.get('X-RateLimit-Remaining') !== '0') {
+        return 'OpenAlex is limiting requests right now. Wait a moment and search again.';
+      }
+      return _apiKey
+        ? `Your OpenAlex API key has used up its daily budget. ${_resetTimeText()}`
+        : `OpenAlex's free daily limit for your network has been used up. ${_resetTimeText()} To continue now, enter your own free API key in the search form.`;
+    }
+    if (_apiKey && (res.status === 401 || res.status === 403)) {
+      return 'OpenAlex did not accept the API key. If the key is new, click the activation link OpenAlex emailed you. Otherwise check the key, or clear the field to search without one.';
+    }
+    return `OpenAlex ${res.status}: ${path}`;
+  }
 
   async function _fetch(path) {
     const sep = path.includes('?') ? '&' : '?';
     const url = `${BASE}${path}${sep}mailto=${encodeURIComponent(POLITE_EMAIL)}`;
-    const res = await fetch(url);
+    const res = await fetch(url, _apiKey ? { headers: { Authorization: `Bearer ${_apiKey}` } } : undefined);
     if (!res.ok) {
-      throw new Error(`OpenAlex ${res.status}: ${path}`);
+      throw new Error(_errorMessage(res, path));
     }
     return res.json();
   }
@@ -690,14 +750,10 @@ RKG.api = (function() {
   async function _resolveInstitution(keyword) {
     const instKeyword = (keyword || '').trim();
     if (instKeyword.length < 3) return [];
-    try {
-      const idata = await _fetch(
-        `/institutions?search=${encodeURIComponent(instKeyword)}&per-page=5&select=id,display_name`
-      );
-      return (idata.results || []).slice(0, 4);
-    } catch (_) {
-      return [];
-    }
+    const idata = await _fetch(
+      `/institutions?search=${encodeURIComponent(instKeyword)}&per-page=5&select=id,display_name`
+    );
+    return (idata.results || []).slice(0, 4);
   }
 
   async function _fetchCandidateAuthors(criteria, resolvedInst) {
@@ -960,11 +1016,15 @@ RKG.api = (function() {
     const groups = _specialtyGroups(criteria);
     const checked = [];
     for (const author of authors) {
-      let works = [];
+      let works;
       try {
         works = await _fetchWorksSample(author.id);
-      } catch (_) {
-        works = [];
+      } catch (e) {
+        // A failed lookup isn't evidence against the author. Keep them, flagged,
+        // so the user can still pick them; dropping them could leave only wrong IDs.
+        console.warn('Specialty lookup failed', e);
+        checked.push({ ...author, _specialtyUnverified: true });
+        continue;
       }
       const matched = works.filter(w => _matchesSpecialtyWork(w, groups, criteria));
       const sampleSize = works.length;
@@ -1008,7 +1068,16 @@ RKG.api = (function() {
       throw new Error('Enter at least one of: author name, ORCID, institution, or specialty.');
     }
 
-    const resolvedInst = await _resolveInstitution(criteria.institution);
+    let resolvedInst = [];
+    let instLookupFailed = false;
+    try {
+      resolvedInst = await _resolveInstitution(criteria.institution);
+    } catch (e) {
+      // Continue with text matching only, but flag it: unlike an institution that
+      // truly matches nothing, this can hide authors the server filter would find.
+      instLookupFailed = true;
+      console.warn('Institution lookup failed', e);
+    }
     criteria.resolvedInstIds = resolvedInst.map(h => h.id);
     const raw = await _fetchCandidateAuthors(criteria, resolvedInst);
     const normalized = raw.map(_normalizeAuthor);
@@ -1020,6 +1089,7 @@ RKG.api = (function() {
     grouped.forEach(author => { author._searchCriteria = criteria; });
 
     grouped._resolvedInst = resolvedInst.map(h => h.display_name);
+    grouped._instLookupFailed = instLookupFailed;
     grouped._criteria = criteria;
     return grouped;
   }
@@ -1127,9 +1197,11 @@ RKG.api = (function() {
   // Input: iterable of OpenAlex source IDs (full URLs).
   // Returns: Map<sourceId, {display_name, host_org, if_2yr, if_source, h_index, works_count, issn_l}>.
   // if_source: 'JCR' when from JCR 2026 data, 'OA' when from OpenAlex 2yr citedness.
+  // The returned Map carries _failedBatches: chunks that failed.
   async function fetchSourceStats(sourceIds) {
     const jcr = window.RKG && window.RKG.jcrData;
     const stats = new Map();
+    stats._failedBatches = 0;
     const ids = [...sourceIds].filter(Boolean);
     for (let i = 0; i < ids.length; i += 50) {
       const chunk = ids.slice(i, i + 50);
@@ -1165,6 +1237,7 @@ RKG.api = (function() {
           });
         }
       } catch (e) {
+        stats._failedBatches++;
         console.warn('source fetch failed for chunk', e);
       }
     }
@@ -1187,6 +1260,7 @@ RKG.api = (function() {
   return {
     searchAuthors, searchByOrcid, fetchAllWorks, fetchSourceStats, filterWorksBySearchCriteria,
     fetchOrcidWorks, fetchWorksByOrcid, fetchWorksByDois, normalizeDoi,
+    getApiKey, setApiKey,
   };
 })();
 
@@ -1344,9 +1418,12 @@ RKG.search = (function() {
 
   function init() {
     $('#search-btn').addEventListener('click', runSearch);
-    ['#author-name', '#author-institution', '#author-specialty', '#author-orcid-input'].forEach(id => {
+    ['#author-name', '#author-institution', '#author-specialty', '#author-orcid-input', '#openalex-key-input'].forEach(id => {
       $(id).addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
     });
+    $('#openalex-key-input').value = RKG.api.getApiKey();
+    _applyApiKey();
+    $('#openalex-key-input').addEventListener('input', _applyApiKey);
     $('#merge-selected-btn').addEventListener('click', () => {
       if (_selectedIds.size < 2) return;
       mergeAndSelect([..._selectedIds].map(i => _candidates[i]));
@@ -1385,6 +1462,28 @@ RKG.search = (function() {
     $('#merge-count').textContent = n;
   }
 
+  function _applyApiKey() {
+    const value = $('#openalex-key-input').value;
+    const accepted = RKG.api.setApiKey(value);
+    $('#openalex-key-status').textContent = !value.trim()
+      ? ''
+      : (accepted ? 'Saved in this browser' : "That doesn't look like an API key");
+  }
+
+  // Warning for lookups that failed during author search, or '' if none did.
+  function _lookupWarning(candidates) {
+    const parts = [];
+    if (candidates._instLookupFailed) {
+      parts.push('The institution lookup failed, so matching authors may be missing.');
+    }
+    const unverified = candidates.filter(a => a._specialtyUnverified).length;
+    if (unverified) {
+      parts.push(`The specialty could not be checked for ${unverified} candidate${unverified === 1 ? '' : 's'} because a lookup failed, so they may not match it.`);
+    }
+    if (parts.length) parts.push('Search again to retry.');
+    return parts.join(' ');
+  }
+
   async function runSearch() {
     const orcid = $('#author-orcid-input').value.trim();
     const name = $('#author-name').value.trim();
@@ -1404,8 +1503,11 @@ RKG.search = (function() {
 
     try {
       _candidates = await RKG.api.searchAuthors({ name, institution: inst, specialty, orcid, koreaOnly });
+      const lookupWarning = _lookupWarning(_candidates);
       if (!_candidates.length) {
-        if (orcid) {
+        if (lookupWarning) {
+          showStatus(lookupWarning, 'error');
+        } else if (orcid) {
           showStatus('The ORCID was found, but no author matches all the name/institution/specialty conditions you entered.', 'error');
         } else if (inst || specialty) {
           showStatus('No author matches all the name/institution/specialty conditions. Try relaxing them one at a time.', 'error');
@@ -1419,6 +1521,7 @@ RKG.search = (function() {
         return;
       }
       renderCandidates();
+      if (lookupWarning) showStatus(lookupWarning, 'error');
     } catch (e) {
       showStatus(`Search error: ${e.message}`, 'error');
     } finally {
@@ -1472,6 +1575,7 @@ RKG.search = (function() {
           <p class="text-xs text-muted mb-1">${insts}</p>
           ${areaLabels.length ? `<p class="text-xs mb-2" style="color:#0071E3;">&#9670; ${areaLabels.join(' · ')}</p>` : '<div class="mb-2"></div>'}
           ${specEvidence ? `<p class="text-xs mb-2" style="color:#1D7A35;">Specialty evidence: ${specEvidence.matchedCount}/${specEvidence.sampleSize} top papers match</p>` : ''}
+          ${a._specialtyUnverified ? `<p class="text-xs mb-2" style="color:#B25000;">Specialty not verified: the lookup failed</p>` : ''}
           ${dupCount > 1 ? `<p class="text-xs mb-2" style="color:#B25000;">${dupCount} possible duplicate IDs — check to merge if needed</p>` : ''}
           <div class="flex gap-3 text-xs">
             <span><span class="text-muted">Works:</span> <span class="mono">${a.works_count}</span></span>
@@ -1697,7 +1801,10 @@ RKG.search = (function() {
     if (pubmedIncomplete) {
       warnings.push('Some PubMed lookups failed, so MeSH terms and Medline-only papers may be missing.');
     }
-    if (orcidRegistryFailed || orcidLookupIncomplete || pubmedIncomplete) {
+    if (stats._failedBatches) {
+      warnings.push('Some journal details could not be loaded, so some journal names and Impact Factors may be missing.');
+    }
+    if (orcidRegistryFailed || orcidLookupIncomplete || pubmedIncomplete || stats._failedBatches) {
       warnings.push('Search again to retry.');
     }
     if (warnings.length) {

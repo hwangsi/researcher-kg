@@ -1,6 +1,6 @@
 # Researcher Knowledge Graph
 
-A single-page web app that visualizes one researcher's publication career: papers over time, co-author structure, topic evolution, and journal impact. No build tools, no backend, no API keys.
+A single-page web app that visualizes one researcher's publication career: papers over time, co-author structure, topic evolution, and journal impact. No build tools, no backend, and no API key required.
 
 **Live:** https://hwangsi.github.io/researcher-kg/
 
@@ -21,6 +21,7 @@ python3 -m http.server 8000
 - **Author search** — name + institution + specialty keywords for disambiguation of common names
 - **ORCID lookup** — the most accurate way to identify an author
 - **Multi-ID merge** — OpenAlex sometimes splits one person across several IDs; merge them with checkboxes (split IDs discovered via ORCID are folded in automatically)
+- **Optional OpenAlex API key** — without a key, everyone on your network shares OpenAlex's free daily limit. Enter your own [free key](https://openalex.org/settings/api-key) in the search form for 10× the budget. It stays in your browser and is sent only to OpenAlex.
 - **3-stage works retrieval** — ORCID registry → OpenAlex → PubMed (see below)
 - **Bubble Timeline** — year × journal × citations × topic, with authorship role (first / last / middle) encoded on each bubble
 - **3D Timeline** — Three.js; X: year, Y: journal IF, Z: citations
