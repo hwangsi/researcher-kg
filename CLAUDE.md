@@ -56,7 +56,7 @@ Author identification (name search → candidate picker) stays as-is. After the 
 ### Stage 3 — PubMed E-utilities (MeSH enrichment + Medline recall)
 - **Never name-only search** — disambiguation risk. Keyed only on ORCID (`esearch.fcgi?db=pubmed&term={orcid}[auid]`) or DOIs from stages 1–2 (`{doi}[doi]`).
 - `efetch.fcgi?db=pubmed&retmode=xml` in batches (~200 PMIDs) → MeSH headings, publication types. Parse with DOMParser.
-- Throttle ≤3 req/s (keyless limit). CORS-friendly.
+- Throttle ≤3 req/s (keyless limit, counted per IP). CORS-friendly, except that NCBI's 429 has no CORS header, so the browser sees a failed fetch with no status. `_throttledFetch` retries those, 429s and 5xxs. Batches that still fail produce a warning above the dashboard instead of silently lowering MeSH counts.
 - Adds `work.mesh = [...]`; Medline-indexed papers absent from OpenAlex get a minimal hydrated record.
 
 ### Merge & provenance
