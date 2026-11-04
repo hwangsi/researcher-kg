@@ -180,24 +180,32 @@ RKG.search = (function() {
   // Stage 3 — PubMed: MeSH enrichment + Medline-only recall (see CLAUDE.md).
   // Keyed ONLY on ORCID / DOIs — never name search. Returns minimal records
   // for Medline papers absent from OpenAlex (viz-safe: source.id is null).
+  // Returns {medlineOnly, incomplete}; incomplete means some lookups failed after retries.
   async function _enrichFromPubmed(works, orcid, orcidEntries, orcidDois) {
-    if (!RKG.pubmed) return [];
+    if (!RKG.pubmed) return { medlineOnly: [], incomplete: false };
     showStatus(`${SPIN}[3/3] Matching papers against PubMed...`);
 
+    let incomplete = false;
     const orcidPmids = new Set(orcidEntries.map(e => e.pmid).filter(Boolean));
     const pmids = new Set(orcidPmids);
     if (orcid) {
       try {
         for (const id of await RKG.pubmed.pmidsByOrcid(orcid)) pmids.add(id);
-      } catch (e) { console.warn('PubMed ORCID search failed (continuing)', e); }
+      } catch (e) {
+        incomplete = true;
+        console.warn('PubMed ORCID search failed (continuing)', e);
+      }
     }
     const dois = works.map(w => w._doi).filter(Boolean);
-    for (const id of await RKG.pubmed.pmidsByDois(dois, (done, total) =>
-      showStatus(`${SPIN}[3/3] Matching DOIs on PubMed... (${done}/${total})`))) pmids.add(id);
-    if (!pmids.size) return [];
+    const doiPmids = await RKG.pubmed.pmidsByDois(dois, (done, total) =>
+      showStatus(`${SPIN}[3/3] Matching DOIs on PubMed... (${done}/${total})`));
+    if (doiPmids._failedBatches) incomplete = true;
+    doiPmids.forEach(id => pmids.add(id));
+    if (!pmids.size) return { medlineOnly: [], incomplete };
 
     const articles = await RKG.pubmed.fetchArticles([...pmids], (done, total) =>
       showStatus(`${SPIN}[3/3] Loading MeSH from PubMed... (${done}/${total})`));
+    if (articles._failedBatches) incomplete = true;
 
     const byDoi = new Map();
     const byTitleYear = new Map();
@@ -234,7 +242,7 @@ RKG.search = (function() {
         });
       }
     }
-    return medlineOnly;
+    return { medlineOnly, incomplete };
   }
 
   // 3-stage works retrieval cascade (CLAUDE.md § "3-stage works retrieval pipeline"):
@@ -310,10 +318,15 @@ RKG.search = (function() {
 
     // ---- Stage 3: PubMed (non-fatal) ----
     let finalWorks = filteredWorks;
+    let pubmedIncomplete = false;
     try {
-      const medlineOnly = await _enrichFromPubmed(filteredWorks, orcid, orcidEntries, orcidDois);
-      if (medlineOnly.length) finalWorks = [...filteredWorks, ...medlineOnly];
-    } catch (e) { console.warn('PubMed stage failed (continuing)', e); }
+      const pubmed = await _enrichFromPubmed(filteredWorks, orcid, orcidEntries, orcidDois);
+      pubmedIncomplete = pubmed.incomplete;
+      if (pubmed.medlineOnly.length) finalWorks = [...filteredWorks, ...pubmed.medlineOnly];
+    } catch (e) {
+      pubmedIncomplete = true;
+      console.warn('PubMed stage failed (continuing)', e);
+    }
 
     const sourceIds = new Set();
     for (const w of finalWorks) {
@@ -326,8 +339,15 @@ RKG.search = (function() {
 
     RKG.state.setWorks(finalWorks);
     RKG.state.setSourceStats(stats);
+    const warnings = [];
     if (missingWorks) {
-      showStatus(`OpenAlex lists ${fmtNum(missingWorks)} more works for this author that could not be loaded, so the results below may be incomplete.`, 'error');
+      warnings.push(`OpenAlex lists ${fmtNum(missingWorks)} more works for this author that could not be loaded, so the results below may be incomplete.`);
+    }
+    if (pubmedIncomplete) {
+      warnings.push('Some PubMed lookups failed, so MeSH terms and Medline-only papers may be missing. Search again to retry.');
+    }
+    if (warnings.length) {
+      showStatus(warnings.join(' '), 'error');
     } else {
       hideStatus();
     }

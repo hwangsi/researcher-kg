@@ -8,16 +8,46 @@ RKG.pubmed = (function() {
   'use strict';
 
   const BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
-  const MIN_INTERVAL_MS = 350; // keyless E-utilities limit: 3 req/s
+  const MIN_INTERVAL_MS = 400; // keyless E-utilities limit: 3 req/s, with margin for network jitter
+  const RETRY_DELAYS_MS = [2000, 4000]; // NCBI's 429 asks for Retry-After: 2
   let _lastCall = 0;
+  let _retriesExhausted = false;
 
-  async function _throttledFetch(url) {
+  const _sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  async function _pacedFetch(url) {
     const wait = _lastCall + MIN_INTERVAL_MS - Date.now();
-    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    if (wait > 0) await _sleep(wait);
     _lastCall = Date.now();
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`PubMed ${res.status}`);
-    return res;
+    return fetch(url);
+  }
+
+  // NCBI's 429 has no CORS header, so the browser reports it as a failed fetch with no
+  // status to read. Failed fetches, 429s and 5xxs are retried. Once a request runs out of
+  // retries, later requests get none until one succeeds, so an outage fails fast instead
+  // of stalling on every batch.
+  async function _throttledFetch(url) {
+    const delays = _retriesExhausted ? [] : RETRY_DELAYS_MS;
+    for (let attempt = 0; ; attempt++) {
+      let res = null;
+      let failure = null;
+      try {
+        res = await _pacedFetch(url);
+      } catch (e) {
+        failure = e;
+      }
+      if (res && res.ok) {
+        _retriesExhausted = false;
+        return res;
+      }
+      if (res) failure = new Error(`PubMed ${res.status}`);
+      if (res && res.status !== 429 && res.status < 500) throw failure;
+      if (attempt >= delays.length) {
+        _retriesExhausted = true;
+        throw failure;
+      }
+      await _sleep(delays[attempt]);
+    }
   }
 
   // ORCID → PMIDs via [auid] indexed field.
@@ -33,9 +63,11 @@ RKG.pubmed = (function() {
 
   // DOIs → PMIDs via chunked OR queries. Returns combined PMID list;
   // per-paper attribution happens later in fetchArticles (DOI read from XML).
+  // The returned array carries _failedBatches: chunks that failed after retries.
   async function pmidsByDois(dois, onProgress) {
     const clean = [...new Set((dois || []).filter(Boolean))];
     const pmids = new Set();
+    let failedBatches = 0;
     for (let i = 0; i < clean.length; i += 40) {
       const chunk = clean.slice(i, i + 40);
       const term = chunk.map(d => `"${d}"[doi]`).join(' OR ');
@@ -46,16 +78,21 @@ RKG.pubmed = (function() {
         const data = await res.json();
         for (const id of (data.esearchresult && data.esearchresult.idlist) || []) pmids.add(id);
       } catch (e) {
+        failedBatches++;
         console.warn('PubMed DOI chunk search failed', e);
       }
       if (onProgress) onProgress(Math.min(i + 40, clean.length), clean.length);
     }
-    return [...pmids];
+    const result = [...pmids];
+    result._failedBatches = failedBatches;
+    return result;
   }
 
   // PMIDs → Map<pmid, {doi, mesh, title, year, journal}> via efetch XML.
+  // The returned Map carries _failedBatches: chunks that failed after retries.
   async function fetchArticles(pmids, onProgress) {
     const articles = new Map();
+    articles._failedBatches = 0;
     const ids = [...new Set((pmids || []).filter(Boolean))];
     for (let i = 0; i < ids.length; i += 200) {
       const chunk = ids.slice(i, i + 200);
@@ -85,6 +122,7 @@ RKG.pubmed = (function() {
           });
         }
       } catch (e) {
+        articles._failedBatches++;
         console.warn('PubMed efetch chunk failed', e);
       }
       if (onProgress) onProgress(Math.min(i + 200, ids.length), ids.length);
