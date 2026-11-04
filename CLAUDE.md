@@ -160,8 +160,6 @@ data/
   jcr-if.js             JCR 2026 ISSN → IF lookup (~13.5k entries), assigns RKG.jcrData; loaded via <script> in index.html
   jcr-if.json           same data as JSON with name/rank/category metadata (regenerated together with jcr-if.js)
   JCR2026_202606.pdf    original JCR 2026 report (source for the IF table; parsed by extract_jcr.py)
-reference/
-  mvp-v1.html           original working monolithic MVP (do not modify)
 ```
 
 ## Conventions
@@ -222,7 +220,6 @@ DO:
 - Test with multiple author profiles (productive PI, mid-career, junior)
 - Round all displayed numbers
 - Handle missing data gracefully (no journal, no topic, no citations)
-- Preserve `reference/mvp-v1.html` untouched
 - Add new viz modules to `js/viz/` and register in `index.html` script tags
 - Use the existing color palette consistently (see `css/styles.css` :root vars)
 

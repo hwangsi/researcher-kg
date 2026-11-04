@@ -176,7 +176,6 @@ tests/
 output/timeline-preview/
   publication-explorer-2d.png ← final 2D preview (synthetic data)
   publication-explorer-3d.png ← final 3D preview (synthetic data)
-reference/mvp-v1.html ← original MVP, kept for reference
 ```
 
 `CLAUDE.md` documents design decisions, constraints, and conventions.

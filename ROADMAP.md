@@ -11,8 +11,6 @@
 - [x] Journal table with IF
 - [x] Paper list with DOI links
 
-Reference: `reference/mvp-v1.html`
-
 ## Phase 2 — Better visualizations 🚧 IN PROGRESS
 
 - [x] Remove ego network (intentional)
