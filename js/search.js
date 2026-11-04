@@ -253,11 +253,15 @@ RKG.search = (function() {
 
     // ---- Stage 1: ORCID registry ----
     let orcidEntries = [];
+    let orcidRegistryFailed = false;
     if (orcid) {
       showStatus(`${SPIN}[1/3] Fetching works from the ORCID registry...`);
       try {
         orcidEntries = await RKG.api.fetchOrcidWorks(orcid);
-      } catch (e) { console.warn('ORCID stage failed (continuing)', e); }
+      } catch (e) {
+        orcidRegistryFailed = true;
+        console.warn('ORCID stage failed (continuing)', e);
+      }
     }
     const orcidDois = new Set(orcidEntries.map(e => e.doi).filter(Boolean));
 
@@ -283,14 +287,24 @@ RKG.search = (function() {
       missingWorks += works._missing;
       addWorks(works);
     }
+    let orcidLookupIncomplete = false;
     if (orcid) {
       try {
         // Catch works under split author IDs not selected in the picker,
         // then hydrate ORCID-registry DOIs OpenAlex knows but didn't link to this author.
-        addWorks(await RKG.api.fetchWorksByOrcid(orcid, progress));
+        const orcidWorks = await RKG.api.fetchWorksByOrcid(orcid, progress);
+        if (orcidWorks._missing) orcidLookupIncomplete = true;
+        addWorks(orcidWorks);
         const missing = [...orcidDois].filter(d => !byDoi.has(d));
-        if (missing.length) addWorks(await RKG.api.fetchWorksByDois(missing));
-      } catch (e) { console.warn('OpenAlex ORCID pass failed (continuing)', e); }
+        if (missing.length) {
+          const hydrated = await RKG.api.fetchWorksByDois(missing);
+          if (hydrated._failedBatches) orcidLookupIncomplete = true;
+          addWorks(hydrated);
+        }
+      } catch (e) {
+        orcidLookupIncomplete = true;
+        console.warn('OpenAlex ORCID pass failed (continuing)', e);
+      }
 
       // The ORCID pass can surface works filed under split author IDs the user
       // didn't merge. Fold those IDs into _mergedIds so role detection, the
@@ -343,8 +357,17 @@ RKG.search = (function() {
     if (missingWorks) {
       warnings.push(`OpenAlex lists ${fmtNum(missingWorks)} more works for this author that could not be loaded, so the results below may be incomplete.`);
     }
+    if (orcidRegistryFailed) {
+      warnings.push('The ORCID registry could not be loaded, so papers listed only on the ORCID record may be missing.');
+    }
+    if (orcidLookupIncomplete) {
+      warnings.push('Some OpenAlex lookups by ORCID or DOI failed, so papers under other author IDs or listed only on the ORCID record may be missing.');
+    }
     if (pubmedIncomplete) {
-      warnings.push('Some PubMed lookups failed, so MeSH terms and Medline-only papers may be missing. Search again to retry.');
+      warnings.push('Some PubMed lookups failed, so MeSH terms and Medline-only papers may be missing.');
+    }
+    if (orcidRegistryFailed || orcidLookupIncomplete || pubmedIncomplete) {
+      warnings.push('Search again to retry.');
     }
     if (warnings.length) {
       showStatus(warnings.join(' '), 'error');

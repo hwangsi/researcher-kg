@@ -40,7 +40,7 @@ Multi-ID merge: OpenAlex가 한국인 이름의 같은 사람을 여러 ID로 sp
 
 ## 3-stage works retrieval pipeline (IMPLEMENTED)
 
-Author identification (name search → candidate picker) stays as-is. After the user selects/merges an author, publication retrieval is a 3-stage cascade orchestrated by `_loadWorksAndActivate` in `js/search.js`. Each stage is non-fatal: on failure, warn and continue with what earlier stages produced. OpenAlex remains the required core; ORCID and PubMed degrade gracefully when unavailable.
+Author identification (name search → candidate picker) stays as-is. After the user selects/merges an author, publication retrieval is a 3-stage cascade orchestrated by `_loadWorksAndActivate` in `js/search.js`. Each stage is non-fatal: on failure, show a warning above the dashboard and continue with what earlier stages produced. OpenAlex remains the required core; ORCID and PubMed degrade gracefully when unavailable.
 
 ### Stage 1 — ORCID registry (identity spine)
 - Runs only if the selected author has an `orcid` (from OpenAlex record or user input). No ORCID → skip.
