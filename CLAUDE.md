@@ -17,7 +17,7 @@ Target user: academic researchers (initially: radiology professors). Use case: c
 ## Data sources
 
 ### Primary: OpenAlex (https://api.openalex.org)
-- Free, open, and used without an API key. Keyless access covers basic queries and page-numbered paging, but **following `next_cursor` past the first page returns 401**. A static app can't keep a key secret, so don't use cursor paging. Response headers showed a keyless budget of 1000 list calls per day (checked 2026-11). Add `?mailto=YOUR_EMAIL` for polite pool (faster, more reliable).
+- Free, open, and works without an API key. Keyless access covers basic queries and page-numbered paging, but **following `next_cursor` past the first page returns 401**. A static app can't keep a shared key secret, so never ship one and don't use cursor paging. Users can enter their own free key in the search form: `RKG.api.setApiKey` keeps it in `localStorage`, and `_fetch` sends it to OpenAlex only, as an `Authorization: Bearer` header so it stays out of URLs and console logs. The keyless budget is 1,000 credits a day, **shared by everyone on the same network IP**, and resets at midnight UTC. A list or filter call costs 1 credit and a `search=` call costs 10 (checked 2026-11). Test against fixtures instead of the live API, because a few browser test runs can use up the whole network's budget for the day. Add `?mailto=YOUR_EMAIL` for polite pool (faster, more reliable).
 - Author search: `/authors?search={name}&per-page=25`
 - All works for an author: `/works?filter=author.id:{id}&per-page=100&page={n}` (no `sort`: a non-unique sort key can move records across page boundaries; 100 is the supported `per-page` maximum)
 - Source (journal) details: `/sources?filter=ids.openalex:{id1|id2|...}` (batch up to 50 per call)
@@ -32,7 +32,7 @@ Target user: academic researchers (initially: radiology professors). Use case: c
 
 Name + institution keyword match → list of candidates → user picks. **Never auto-select**, even with one match. Korean names have severe disambiguation issues — the same person may appear under multiple OpenAlex IDs in older data.
 
-Filter logic: case-insensitive substring match on the institution string against `affiliations[].institution.display_name` and `last_known_institutions[].display_name`. Tokens of length ≥3 required.
+Filter logic: case-insensitive substring match on the institution string against `affiliations[].institution.display_name` and `last_known_institutions[].display_name`. Tokens of length ≥3 required. A failed lookup must never look like "no match": a candidate whose specialty lookup failed stays in the picker, marked unverified, and failed lookups show a warning.
 
 ORCID-first: 검색 폼의 ORCID 필드 사용 시 `/authors?filter=orcid:{}` 로 직접 조회. 가장 정확한 disambiguation. 단일 결과면 자동으로 선택 → 로딩 시작.
 
