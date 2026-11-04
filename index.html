@@ -60,8 +60,15 @@
         <input id="korea-only-chk" type="checkbox" class="w-4 h-4 cursor-pointer accent-[#0071E3]">
         <span class="text-sm">Korean institutions only</span>
       </label>
+      <div class="w-full max-w-[320px]">
+        <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2" for="openalex-key-input">OpenAlex API Key (optional)</label>
+        <input id="openalex-key-input" type="password" class="input-field w-full px-4 py-2.5 rounded text-sm mono" placeholder="Paste your key" autocomplete="new-password" spellcheck="false">
+      </div>
+      <a href="https://openalex.org/settings/api-key" target="_blank" rel="noopener noreferrer" class="text-sm underline-offset-2 hover:underline mb-2.5" style="color:#0071E3;">Get a free key</a>
+      <span id="openalex-key-status" class="text-xs text-muted mb-3"></span>
     </div>
     <p class="text-xs text-muted mt-3">Institution: a keyword from the institution name (e.g. Bundang). Specialty: a department name (e.g. Radiology). If many authors share the name, check <b>Korean institutions only</b>. ORCID gives the most accurate match.</p>
+    <p class="text-xs text-muted mt-1">API key: not required, but without one everyone on your network shares OpenAlex's small free daily limit. Your key stays in this browser and is sent only to OpenAlex.</p>
   </section>
 
   <div id="status" class="hidden mb-6"></div>

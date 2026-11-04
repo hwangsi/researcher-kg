@@ -8,13 +8,66 @@ RKG.api = (function() {
 
   const POLITE_EMAIL = 'researcher-kg@example.com';
   const BASE = 'https://api.openalex.org';
+  const API_KEY_STORAGE = 'rkg.openalexApiKey';
+
+  // Optional user-supplied OpenAlex key. It lives only in this browser and is sent only
+  // to OpenAlex, in a header so it stays out of URLs and console logs.
+  let _apiKey = _loadStoredApiKey();
+
+  function _loadStoredApiKey() {
+    try {
+      return localStorage.getItem(API_KEY_STORAGE) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function getApiKey() {
+    return _apiKey;
+  }
+
+  // Returns false if the text can't be a key; header values must be printable ASCII.
+  function setApiKey(key) {
+    const clean = (key || '').trim();
+    const valid = !clean || /^[\x21-\x7E]+$/.test(clean);
+    _apiKey = valid ? clean : '';
+    try {
+      if (_apiKey) localStorage.setItem(API_KEY_STORAGE, _apiKey);
+      else localStorage.removeItem(API_KEY_STORAGE);
+    } catch (_) {
+      // Storage blocked: the key still works until the page is closed.
+    }
+    return valid;
+  }
+
+  function _resetTimeText() {
+    const now = new Date();
+    const midnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+    const local = new Date(midnightUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return `It resets at ${local} your time.`;
+  }
+
+  function _errorMessage(res, path) {
+    if (res.status === 429) {
+      if (res.headers.get('X-RateLimit-Remaining') !== '0') {
+        return 'OpenAlex is limiting requests right now. Wait a moment and search again.';
+      }
+      return _apiKey
+        ? `Your OpenAlex API key has used up its daily budget. ${_resetTimeText()}`
+        : `OpenAlex's free daily limit for your network has been used up. ${_resetTimeText()} To continue now, enter your own free API key in the search form.`;
+    }
+    if (_apiKey && (res.status === 401 || res.status === 403)) {
+      return 'OpenAlex did not accept the API key. If the key is new, click the activation link OpenAlex emailed you. Otherwise check the key, or clear the field to search without one.';
+    }
+    return `OpenAlex ${res.status}: ${path}`;
+  }
 
   async function _fetch(path) {
     const sep = path.includes('?') ? '&' : '?';
     const url = `${BASE}${path}${sep}mailto=${encodeURIComponent(POLITE_EMAIL)}`;
-    const res = await fetch(url);
+    const res = await fetch(url, _apiKey ? { headers: { Authorization: `Bearer ${_apiKey}` } } : undefined);
     if (!res.ok) {
-      throw new Error(`OpenAlex ${res.status}: ${path}`);
+      throw new Error(_errorMessage(res, path));
     }
     return res.json();
   }
@@ -90,14 +143,10 @@ RKG.api = (function() {
   async function _resolveInstitution(keyword) {
     const instKeyword = (keyword || '').trim();
     if (instKeyword.length < 3) return [];
-    try {
-      const idata = await _fetch(
-        `/institutions?search=${encodeURIComponent(instKeyword)}&per-page=5&select=id,display_name`
-      );
-      return (idata.results || []).slice(0, 4);
-    } catch (_) {
-      return [];
-    }
+    const idata = await _fetch(
+      `/institutions?search=${encodeURIComponent(instKeyword)}&per-page=5&select=id,display_name`
+    );
+    return (idata.results || []).slice(0, 4);
   }
 
   async function _fetchCandidateAuthors(criteria, resolvedInst) {
@@ -360,11 +409,15 @@ RKG.api = (function() {
     const groups = _specialtyGroups(criteria);
     const checked = [];
     for (const author of authors) {
-      let works = [];
+      let works;
       try {
         works = await _fetchWorksSample(author.id);
-      } catch (_) {
-        works = [];
+      } catch (e) {
+        // A failed lookup isn't evidence against the author. Keep them, flagged,
+        // so the user can still pick them; dropping them could leave only wrong IDs.
+        console.warn('Specialty lookup failed', e);
+        checked.push({ ...author, _specialtyUnverified: true });
+        continue;
       }
       const matched = works.filter(w => _matchesSpecialtyWork(w, groups, criteria));
       const sampleSize = works.length;
@@ -408,7 +461,16 @@ RKG.api = (function() {
       throw new Error('Enter at least one of: author name, ORCID, institution, or specialty.');
     }
 
-    const resolvedInst = await _resolveInstitution(criteria.institution);
+    let resolvedInst = [];
+    let instLookupFailed = false;
+    try {
+      resolvedInst = await _resolveInstitution(criteria.institution);
+    } catch (e) {
+      // Continue with text matching only, but flag it: unlike an institution that
+      // truly matches nothing, this can hide authors the server filter would find.
+      instLookupFailed = true;
+      console.warn('Institution lookup failed', e);
+    }
     criteria.resolvedInstIds = resolvedInst.map(h => h.id);
     const raw = await _fetchCandidateAuthors(criteria, resolvedInst);
     const normalized = raw.map(_normalizeAuthor);
@@ -420,6 +482,7 @@ RKG.api = (function() {
     grouped.forEach(author => { author._searchCriteria = criteria; });
 
     grouped._resolvedInst = resolvedInst.map(h => h.display_name);
+    grouped._instLookupFailed = instLookupFailed;
     grouped._criteria = criteria;
     return grouped;
   }
@@ -527,9 +590,11 @@ RKG.api = (function() {
   // Input: iterable of OpenAlex source IDs (full URLs).
   // Returns: Map<sourceId, {display_name, host_org, if_2yr, if_source, h_index, works_count, issn_l}>.
   // if_source: 'JCR' when from JCR 2026 data, 'OA' when from OpenAlex 2yr citedness.
+  // The returned Map carries _failedBatches: chunks that failed.
   async function fetchSourceStats(sourceIds) {
     const jcr = window.RKG && window.RKG.jcrData;
     const stats = new Map();
+    stats._failedBatches = 0;
     const ids = [...sourceIds].filter(Boolean);
     for (let i = 0; i < ids.length; i += 50) {
       const chunk = ids.slice(i, i + 50);
@@ -565,6 +630,7 @@ RKG.api = (function() {
           });
         }
       } catch (e) {
+        stats._failedBatches++;
         console.warn('source fetch failed for chunk', e);
       }
     }
@@ -587,5 +653,6 @@ RKG.api = (function() {
   return {
     searchAuthors, searchByOrcid, fetchAllWorks, fetchSourceStats, filterWorksBySearchCriteria,
     fetchOrcidWorks, fetchWorksByOrcid, fetchWorksByDois, normalizeDoi,
+    getApiKey, setApiKey,
   };
 })();
