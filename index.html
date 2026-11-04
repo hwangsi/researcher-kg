@@ -24,7 +24,7 @@
 <div class="max-w-[1400px] mx-auto px-6 lg:px-10 py-8">
 
   <header class="mb-10">
-    <div class="flex items-baseline gap-4 mb-2">
+    <div class="flex flex-wrap items-baseline gap-4 mb-2">
       <h1 class="display text-4xl font-medium">Researcher</h1>
       <span class="display text-4xl italic accent">Knowledge Graph</span>
     </div>
@@ -181,15 +181,50 @@
     </div>
 
     <div id="tab-bubble3d" class="tab-panel hidden">
-      <div class="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <h3 class="display text-lg">3D Timeline</h3>
-        <div class="flex items-center gap-3 flex-wrap">
-          <p class="text-xs text-muted">X: year &middot; Y: journal IF &middot; Z: citations &nbsp;|&nbsp; Right-drag: rotate &middot; Left-drag: pan &middot; Scroll: zoom</p>
-          <button id="bubble-3d-reset" class="text-xs px-3 py-1 rounded" style="border:1px solid var(--rule);color:var(--ink-muted);background:transparent;cursor:pointer;">Reset view</button>
+      <div class="explorer-heading">
+        <div>
+          <h3 class="display text-2xl">Publication Explorer</h3>
+          <p class="text-sm text-muted mt-1">Follow a research career. Compare its papers from every angle.</p>
         </div>
+        <span class="explorer-tag">2D + 3D TIMELINE</span>
       </div>
-      <div class="card rounded" style="overflow:hidden;">
-        <div id="bubble-3d-container" style="height:580px;"></div>
+      <div id="publication-explorer" class="explorer card">
+        <div class="explorer-toolbar">
+          <div class="explorer-views" role="group" aria-label="Publication view">
+            <button type="button" data-explorer-view="citations" aria-pressed="true">Year × Citations</button>
+            <button type="button" data-explorer-view="journal" aria-pressed="false">Year × Journal IF</button>
+            <button type="button" data-explorer-view="impact" aria-pressed="false">IF × Citations</button>
+            <button type="button" data-explorer-view="3d" aria-pressed="false">3D Explore</button>
+          </div>
+          <div class="explorer-options">
+            <label>Color <select id="explorer-color"><option value="topic">Topic</option><option value="role">Author role</option></select></label>
+            <label>Scale <select id="explorer-scale"><option value="sqrt">Square root</option><option value="linear">Linear</option></select></label>
+          </div>
+        </div>
+        <div class="explorer-legend" id="explorer-legend" role="group" aria-label="Filter by color"></div>
+        <div class="explorer-layout">
+          <div class="explorer-main">
+            <div class="explorer-chart-heading">
+              <div><strong id="explorer-chart-title">Citation history</strong><span id="explorer-count" aria-live="polite"></span></div>
+              <div class="explorer-chart-actions">
+                <button type="button" id="explorer-fit">Fit filtered papers</button>
+                <button type="button" id="bubble-3d-reset">Reset view</button>
+              </div>
+            </div>
+            <div id="bubble-3d-container" class="explorer-plot" aria-label="Interactive publication chart"></div>
+            <div class="explorer-chart-footer"><span id="explorer-gesture"></span><span id="explorer-domain">Career-wide axes</span></div>
+            <p id="explorer-missing" class="explorer-missing" aria-live="polite"></p>
+          </div>
+          <aside class="explorer-inspector" aria-label="Paper details and list">
+            <div id="explorer-detail"></div>
+            <div class="explorer-list-heading"><strong id="explorer-list-title">Papers in view</strong><button type="button" id="explorer-clear-group" hidden>Show all</button></div>
+            <label class="explorer-search-label" for="explorer-search">Find a paper</label>
+            <input id="explorer-search" type="search" placeholder="Search title or journal…" autocomplete="off">
+            <div id="explorer-paper-list" class="explorer-paper-list" aria-label="Select a paper"></div>
+            <button type="button" id="explorer-more" class="explorer-more" hidden>Show more papers</button>
+          </aside>
+        </div>
+        <div class="explorer-footnote">Journal metric: JCR 2025 JIF where available; OpenAlex 2-year mean citedness otherwise. These are current journal metrics, not publication-year IFs. Unknown values are never plotted as zero.</div>
       </div>
     </div>
 
